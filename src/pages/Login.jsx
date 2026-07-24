@@ -52,6 +52,8 @@ export default function Login() {
               <label className="mb-1 block text-sm font-medium text-slate-700">用户名</label>
               <input
                 type="text"
+                name="username"
+                autoComplete="username"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -64,6 +66,8 @@ export default function Login() {
               <div className="relative">
                 <input
                   type={show ? 'text' : 'password'}
+                  name="password"
+                  autoComplete="current-password"
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
