@@ -72,12 +72,14 @@ Deno.serve(async (req) => {
         if (!cid) { failed++; continue }
         const stats = await fetchStats(cid)
         if (!stats) { failed++; continue }
-        await db.from(t.table).update({
+        const upd: Record<string, unknown> = {
           external_id: cid,
           followers: stats.followers,
-          connected: true,
           last_synced_at: new Date().toISOString(),
-        }).eq('id', row.id)
+        }
+        if (t.table === 'accounts') upd.connected = true          // 账号表专有列
+        if (t.table === 'competitors') upd.posts_count = stats.posts_count  // 竞品表专有列
+        await db.from(t.table).update(upd).eq('id', row.id)
         await snapshot(db, t.type, row.id, 'youtube', stats)
         processed++
       } catch (_e) { failed++ }
