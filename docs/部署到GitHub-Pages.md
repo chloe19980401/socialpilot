@@ -56,20 +56,22 @@ git push -u origin main
 
 ## 5. 创建管理员账号
 
+系统用「用户名登录」（输入 `chloelee`，前端自动补成 `chloelee@foreverdoodle.com`）。
+
 Supabase 后台 **Authentication → Users → Add user**：
 
-- Email：`socialwonly@foreverdoodle.com`
-- Password：自设
+- Email：`chloelee@foreverdoodle.com`
+- Password：`chloe123`
 - 勾选 **Auto Confirm User**
 
 然后到 **SQL Editor** 把它设为管理员：
 
 ```sql
 update public.profiles set role = 'admin'
-where email = 'socialwonly@foreverdoodle.com';
+where email = 'chloelee@foreverdoodle.com';
 ```
 
-用这个账号在 `https://socialwonly.foreverdoodle.com` 登录即可。
+之后在 `https://socialwonly.foreverdoodle.com` 登录页填 用户名 `chloelee` / 密码 `chloe123` 即可。
 
 ---
 

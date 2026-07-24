@@ -41,13 +41,22 @@ VITE_SUPABASE_ANON_KEY=你的 anon / publishable key
 
 系统设计为「管理员建号、用户不能自行注册」。首个管理员账号在 Supabase 后台创建：
 
-**Authentication → Users → Add user**，邮箱填 `socialwonly@foreverdoodle.com`、设密码（勾选 Auto Confirm）。
+系统用「用户名登录」：登录页输入用户名（如 `chloelee`），前端会自动补成邮箱
+`chloelee@foreverdoodle.com` 再提交（域名在 `src/lib/config.js` 的 `AUTH_EMAIL_DOMAIN` 可改）。
 
-创建后，把该用户设为管理员（SQL Editor 执行）：
+所以在 **Authentication → Users → Add user** 里：
+
+- Email：`chloelee@foreverdoodle.com`
+- Password：`chloe123`
+- 勾选 **Auto Confirm User**
+
+创建后设为管理员（SQL Editor 执行）：
 
 ```sql
-update public.profiles set role = 'admin' where email = 'socialwonly@foreverdoodle.com';
+update public.profiles set role = 'admin' where email = 'chloelee@foreverdoodle.com';
 ```
+
+之后在登录页用户名填 `chloelee`、密码 `chloe123` 即可登录。
 
 ### 5. 启动
 

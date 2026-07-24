@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Eye, EyeOff, Compass } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { isSupabaseConfigured } from '../lib/supabase'
+import { toEmail } from '../lib/config'
 import { inputClass } from '../components/ui/Common'
 
 export default function Login() {
@@ -22,7 +23,7 @@ export default function Login() {
       return
     }
     setLoading(true)
-    const { error } = await signIn(email, password)
+    const { error } = await signIn(toEmail(email), password)
     setLoading(false)
     if (error) {
       setError('登录失败：' + error.message)
@@ -48,13 +49,13 @@ export default function Login() {
 
           <div className="mt-5 space-y-4">
             <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">邮箱</label>
+              <label className="mb-1 block text-sm font-medium text-slate-700">用户名</label>
               <input
-                type="email"
+                type="text"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="your@email.com"
+                placeholder="chloelee"
                 className={inputClass}
               />
             </div>
