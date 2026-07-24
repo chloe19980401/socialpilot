@@ -17,7 +17,7 @@ export default function Brands() {
   const [modal, setModal] = useState(false)
   const [form, setForm] = useState({ name: '', slug: '' })
   const [accModal, setAccModal] = useState(null) // 绑定账号弹窗：存 brand
-  const [accForm, setAccForm] = useState({ platform: 'youtube', handle: '', display_name: '' })
+  const [accForm, setAccForm] = useState({ platform: 'youtube', profile_url: '', display_name: '' })
   const [syncing, setSyncing] = useState(false)
 
   async function autoBind() {
@@ -68,17 +68,34 @@ export default function Brands() {
   }
 
   function openAddAccount(brand) {
-    setAccForm({ platform: 'youtube', handle: '', display_name: '' })
+    setAccForm({ platform: 'youtube', profile_url: '', display_name: '' })
     setAccModal(brand)
+  }
+
+  // 从主页链接里提取一个用于显示的 handle
+  function handleFromUrl(url) {
+    try {
+      const u = new URL(url.trim())
+      const parts = u.pathname.split('/').filter(Boolean)
+      const at = parts.find((p) => p.startsWith('@'))
+      if (at) return at.slice(1)
+      if (parts.length) return parts[parts.length - 1].replace(/^@/, '')
+      return u.hostname
+    } catch {
+      return url.trim().replace(/^@/, '')
+    }
   }
 
   async function addAccount(e) {
     e.preventDefault()
-    if (!accForm.handle) return
+    const url = accForm.profile_url.trim()
+    if (!url) return
+    const handle = handleFromUrl(url)
     await supabase.from('accounts').insert({
       brand_id: accModal.id,
       platform: accForm.platform,
-      handle: accForm.handle.replace(/^@/, ''),
+      profile_url: url,
+      handle,
       display_name: accForm.display_name || accModal.name,
       connected: false,
       followers: 0,
@@ -209,13 +226,16 @@ export default function Brands() {
               {PLATFORM_KEYS.map((k) => <option key={k} value={k}>{platformMeta(k).label}</option>)}
             </select>
           </Field>
-          <Field label="账号 handle / 用户名">
-            <input className={inputClass} value={accForm.handle} onChange={(e) => setAccForm({ ...accForm, handle: e.target.value })} placeholder="例如 homevirtavo（不用带 @）" />
+          <Field label="主页链接">
+            <input className={inputClass} value={accForm.profile_url} onChange={(e) => setAccForm({ ...accForm, profile_url: e.target.value })} placeholder="粘贴完整主页链接，如 https://www.youtube.com/@homevirtavo" />
           </Field>
           <Field label="显示名称（可选）">
             <input className={inputClass} value={accForm.display_name} onChange={(e) => setAccForm({ ...accForm, display_name: e.target.value })} placeholder="例如 VIRTAVO 官方" />
           </Field>
-          <p className="text-xs text-slate-400">绑定后点右上角「自动绑定社媒链接」即可自动抓取粉丝等数据（需先配置对应平台的 API 密钥）。</p>
+          <p className="text-xs text-slate-400">
+            直接粘主页链接最精准。YouTube 频道链接（<code>/channel/UC…</code> 或 <code>/@名字</code>）、
+            Instagram（<code>instagram.com/用户名</code>）都可以。绑定后点「自动绑定社媒链接」自动抓数据（需先配好该平台 API 密钥）。
+          </p>
         </form>
       </Modal>
     </div>

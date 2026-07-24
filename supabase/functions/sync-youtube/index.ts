@@ -9,19 +9,32 @@ import { admin, json, corsHeaders, snapshot, writeLog } from '../_shared/util.ts
 const API = 'https://www.googleapis.com/youtube/v3'
 const KEY = Deno.env.get('YOUTUBE_API_KEY') ?? ''
 
-// 把 handle(@name) 或频道链接解析成 channelId
+// 从主页链接解析：/channel/UC… 直接是频道ID；/@名字 是 handle；/c//user/ 走搜索
+function parseYouTubeUrl(url: string) {
+  if (!url) return {} as { channelId?: string; handle?: string; query?: string }
+  const mCh = url.match(/\/channel\/([A-Za-z0-9_-]+)/)
+  if (mCh) return { channelId: mCh[1] }
+  const mAt = url.match(/\/@([A-Za-z0-9_.\-]+)/)
+  if (mAt) return { handle: mAt[1] }
+  const mCU = url.match(/\/(?:c|user)\/([A-Za-z0-9_.\-]+)/)
+  if (mCU) return { query: mCU[1] }
+  return {}
+}
+
+// 把主页链接 / handle 解析成 channelId
 async function resolveChannelId(row: { external_id?: string; handle?: string; profile_url?: string }) {
   if (row.external_id) return row.external_id
-  const handle = (row.handle || '').replace(/^@/, '')
+  const p = parseYouTubeUrl(row.profile_url || '')
+  if (p.channelId) return p.channelId
+  const handle = p.handle || (row.handle || '').replace(/^@/, '')
   if (handle) {
     const r = await fetch(`${API}/channels?part=id&forHandle=${encodeURIComponent(handle)}&key=${KEY}`)
     const d = await r.json()
     if (d.items?.[0]?.id) return d.items[0].id
   }
-  // 退回用搜索
-  if (row.profile_url || handle) {
-    const q = encodeURIComponent(handle || row.profile_url || '')
-    const r = await fetch(`${API}/search?part=snippet&type=channel&q=${q}&maxResults=1&key=${KEY}`)
+  const q = p.query || handle || row.profile_url
+  if (q) {
+    const r = await fetch(`${API}/search?part=snippet&type=channel&q=${encodeURIComponent(q)}&maxResults=1&key=${KEY}`)
     const d = await r.json()
     return d.items?.[0]?.snippet?.channelId ?? null
   }
