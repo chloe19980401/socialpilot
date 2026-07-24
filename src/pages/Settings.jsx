@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Users, Bell, Send, KeyRound, UserPlus } from 'lucide-react'
+import { Users, Bell, Send, KeyRound, UserPlus, Eye, EyeOff } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { Card } from '../components/ui/Card'
 import PageHeader from '../components/ui/PageHeader'
@@ -13,16 +13,27 @@ const TABS = [
   { key: 'api', label: 'API集成', Icon: KeyRound },
 ]
 
+const ROLE = { admin: { label: '管理员', color: 'blue' }, operator: { label: '运营', color: 'green' }, designer: { label: '设计师', color: 'orange' } }
+const roleMeta = (r) => ROLE[r] || { label: '协作者', color: 'slate' }
+const usernameOf = (email) => (email || '').split('@')[0]
+
 export default function Settings() {
   const { profile } = useAuth()
+  const isAdmin = profile?.role === 'admin'
   const [tab, setTab] = useState('users')
   const [users, setUsers] = useState([])
+  const [creds, setCreds] = useState({}) // id -> init_password（仅管理员可读）
+  const [showPwd, setShowPwd] = useState(false)
   const [modal, setModal] = useState(false)
   const [form, setForm] = useState({ name: '', email: '', role: 'operator' })
 
   async function loadUsers() {
     const { data } = await supabase.from('profiles').select('*').order('created_at')
     setUsers(data || [])
+    // 凭证表有 admin-only RLS：非管理员查询返回空，管理员才拿得到
+    const { data: cd } = await supabase.from('staff_credentials').select('id, init_password')
+    const map = {}; (cd || []).forEach((c) => { map[c.id] = c.init_password })
+    setCreds(map)
   }
   useEffect(() => { loadUsers() }, [])
 
@@ -68,9 +79,9 @@ export default function Settings() {
                   </div>
                   <div className="flex-1">
                     <div className="font-medium text-slate-800">{profile?.name}</div>
-                    <div className="text-sm text-slate-400">{profile?.email}</div>
+                    <div className="text-sm text-slate-400">用户名 {usernameOf(profile?.email)}</div>
                   </div>
-                  <Badge color="blue">{profile?.role === 'admin' ? '管理员' : '协作者'}</Badge>
+                  <Badge color={roleMeta(profile?.role).color}>{roleMeta(profile?.role).label}</Badge>
                 </div>
               </div>
 
@@ -79,22 +90,40 @@ export default function Settings() {
                   <div className="text-base font-semibold text-slate-800">账号列表</div>
                   <div className="text-sm text-slate-400">所有用户由管理员创建，用户不可自行注册</div>
                 </div>
-                <Button variant="primary" onClick={() => setModal(true)}><UserPlus size={16} /> 创建账号</Button>
+                <div className="flex items-center gap-2">
+                  {isAdmin && (
+                    <Button onClick={() => setShowPwd((v) => !v)}>{showPwd ? <EyeOff size={16} /> : <Eye size={16} />} {showPwd ? '隐藏密码' : '显示密码'}</Button>
+                  )}
+                  <Button variant="primary" onClick={() => setModal(true)}><UserPlus size={16} /> 创建账号</Button>
+                </div>
               </div>
 
-              <div className="mt-4 space-y-2">
-                {users.length === 0 && <div className="py-6 text-center text-sm text-slate-400">暂无其他账号</div>}
-                {users.map((u) => (
-                  <div key={u.id} className="flex items-center gap-3 rounded-xl border border-slate-100 p-3">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 font-semibold text-slate-600">{(u.name || u.email)[0].toUpperCase()}</div>
-                    <div className="flex-1">
-                      <div className="text-sm font-medium text-slate-800">{u.name}</div>
-                      <div className="text-xs text-slate-400">{u.email}</div>
-                    </div>
-                    <Badge color={u.role === 'admin' ? 'blue' : 'slate'}>{u.role === 'admin' ? '管理员' : '协作者'}</Badge>
-                  </div>
-                ))}
+              <div className="mt-4 overflow-x-auto">
+                {users.length === 0 ? (
+                  <div className="py-6 text-center text-sm text-slate-400">暂无账号</div>
+                ) : (
+                  <table className="w-full text-sm">
+                    <thead className="border-b border-slate-100 text-left text-xs text-slate-400">
+                      <tr><th className="px-3 py-2">姓名</th><th className="px-3 py-2">用户名</th><th className="px-3 py-2">角色</th>{isAdmin && <th className="px-3 py-2">密码</th>}</tr>
+                    </thead>
+                    <tbody>
+                      {users.map((u) => (
+                        <tr key={u.id} className="border-b border-slate-50">
+                          <td className="px-3 py-2.5 font-medium text-slate-800">{u.name}</td>
+                          <td className="px-3 py-2.5 text-slate-500">{usernameOf(u.email)}</td>
+                          <td className="px-3 py-2.5"><Badge color={roleMeta(u.role).color}>{roleMeta(u.role).label}</Badge></td>
+                          {isAdmin && (
+                            <td className="px-3 py-2.5 font-mono text-slate-600">
+                              {creds[u.id] ? (showPwd ? creds[u.id] : '••••••') : <span className="text-slate-300">—</span>}
+                            </td>
+                          )}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
               </div>
+              {isAdmin && <p className="mt-3 text-xs text-slate-400">密码仅管理员可见（凭证表已按角色做行级安全，运营/设计师登录后看不到本页密码列）。</p>}
             </>
           )}
 
