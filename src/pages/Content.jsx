@@ -58,10 +58,17 @@ export default function Content() {
   )
 
   const totals = useMemo(() => {
-    const t = { count: filtered.length, likes: 0, views: 0, comments: 0 }
-    filtered.forEach((p) => { t.likes += p.likes || 0; t.views += p.views || 0; t.comments += p.comments || 0 })
+    const t = { count: filtered.length, likes: 0, views: 0, comments: 0, shares: 0, saves: 0 }
+    filtered.forEach((p) => { t.likes += p.likes || 0; t.views += p.views || 0; t.comments += p.comments || 0; t.shares += p.shares || 0; t.saves += p.saves || 0 })
+    t.engagement = t.views > 0 ? (t.likes + t.comments + t.shares + t.saves) / t.views : 0
     return t
   }, [filtered])
+
+  // 单条帖子互动率 = (赞+评论+转发+收藏) / 播放
+  function engRate(p) {
+    if (!p.views || p.views <= 0) return null
+    return ((p.likes || 0) + (p.comments || 0) + (p.shares || 0) + (p.saves || 0)) / p.views
+  }
 
   const trend = useMemo(() => {
     const sum = { count: () => 1, likes: (p) => p.likes || 0, views: (p) => p.views || 0, comments: (p) => p.comments || 0, engagement: () => 0 }[metric]
@@ -153,7 +160,7 @@ export default function Content() {
 
       <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-5">
         {METRICS.map((m) => (
-          <StatCard key={m.key} icon={m.icon} value={m.key === 'engagement' ? '0.00%' : m.fmt(totals[m.key] || 0)} label={m.label} active={metric === m.key} onClick={() => setMetric(m.key)} />
+          <StatCard key={m.key} icon={m.icon} value={m.key === 'engagement' ? (totals.engagement * 100).toFixed(2) + '%' : m.fmt(totals[m.key] || 0)} label={m.label} active={metric === m.key} onClick={() => setMetric(m.key)} />
         ))}
       </div>
 
@@ -187,6 +194,7 @@ export default function Content() {
                 <tr>
                   <th className="px-5 py-3">标题</th><th className="px-3 py-3">平台</th><th className="px-3 py-3">运营</th>
                   <th className="px-3 py-3">设计师</th><th className="px-3 py-3">点赞</th><th className="px-3 py-3">播放</th>
+                  <th className="px-3 py-3">评论</th><th className="px-3 py-3">转发</th><th className="px-3 py-3">互动率</th>
                   <th className="px-3 py-3">发布</th><th className="px-3 py-3">操作</th>
                 </tr>
               </thead>
@@ -195,12 +203,19 @@ export default function Content() {
                   const meta = platformMeta(p.platform); const { Icon } = meta
                   return (
                     <tr key={p.id} className="border-b border-slate-50 hover:bg-slate-50">
-                      <td className="max-w-[220px] truncate px-5 py-3 font-medium text-slate-700">{p.title || '（无标题）'}</td>
+                      <td className="max-w-[220px] truncate px-5 py-3 font-medium">
+                        {p.url
+                          ? <a href={p.url} target="_blank" rel="noreferrer" className="text-brand-600 hover:underline" title={p.title || ''}>{p.title || '（无标题）'}</a>
+                          : <span className="text-slate-700">{p.title || '（无标题）'}</span>}
+                      </td>
                       <td className="px-3 py-3"><Icon size={16} style={{ color: meta.color }} /></td>
                       <td className="px-3 py-3">{p.operator_name ? <Badge color="blue">{p.operator_name}</Badge> : <span className="text-slate-300">—</span>}</td>
                       <td className="px-3 py-3">{p.designer_name ? <Badge color="green">{p.designer_name}</Badge> : <span className="text-slate-300">—</span>}</td>
                       <td className="px-3 py-3 text-slate-500">{compactEN(p.likes)}</td>
                       <td className="px-3 py-3 text-slate-500">{compactEN(p.views)}</td>
+                      <td className="px-3 py-3 text-slate-500">{compactEN(p.comments)}</td>
+                      <td className="px-3 py-3 text-slate-500">{compactEN(p.shares)}</td>
+                      <td className="px-3 py-3 text-slate-500">{engRate(p) == null ? '—' : (engRate(p) * 100).toFixed(1) + '%'}</td>
                       <td className="px-3 py-3 text-slate-400">{formatDate(p.published_at)}</td>
                       <td className="px-3 py-3">
                         <div className="flex gap-2 text-slate-400">
