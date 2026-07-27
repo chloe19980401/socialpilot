@@ -52,6 +52,7 @@ export default function Content() {
   const [brands, setBrands] = useState([])
   const [profiles, setProfiles] = useState([])
   const [brandTab, setBrandTab] = useState('all')
+  const [platformTab, setPlatformTab] = useState('all')
   const [metric, setMetric] = useState('count')
   const [range, setRange] = useState(30)
   const [loading, setLoading] = useState(true)
@@ -78,6 +79,16 @@ export default function Content() {
   const filtered = useMemo(
     () => (brandTab === 'all' ? posts : posts.filter((p) => p.brand_id === brandTab)),
     [posts, brandTab]
+  )
+
+  // 帖子列表按平台筛选（不影响上方总览指标）
+  const listPlatforms = useMemo(() => {
+    const set = new Set(filtered.map((p) => (p.platform || '').toLowerCase()).filter(Boolean))
+    return ['all', ...Array.from(set)]
+  }, [filtered])
+  const tablePosts = useMemo(
+    () => (platformTab === 'all' ? filtered : filtered.filter((p) => (p.platform || '').toLowerCase() === platformTab)),
+    [filtered, platformTab]
   )
 
   const totals = useMemo(() => {
@@ -210,7 +221,14 @@ export default function Content() {
           <div className="font-semibold text-slate-800">帖子列表</div>
           <Button variant="primary" onClick={openNew}><Plus size={16} /> 新增帖子</Button>
         </div>
-        {filtered.length === 0 ? (
+        <div className="flex flex-wrap gap-2 border-t border-slate-100 px-5 py-3">
+          {listPlatforms.map((p) => (
+            <button key={p} onClick={() => setPlatformTab(p)} className={`rounded-lg px-3 py-1.5 text-xs ${platformTab === p ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
+              {p === 'all' ? '全部平台' : platformMeta(p).label}
+            </button>
+          ))}
+        </div>
+        {tablePosts.length === 0 ? (
           <EmptyState icon={<FileText size={28} />} title={loading ? '加载中…' : '暂无帖子'} hint="点「上传帖子」录入，或去品牌页绑定账号后一键同步" />
         ) : (
           <div className="overflow-x-auto">
@@ -224,7 +242,7 @@ export default function Content() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((p) => {
+                {tablePosts.map((p) => {
                   const meta = platformMeta(p.platform); const { Icon } = meta
                   return (
                     <tr key={p.id} className="border-b border-slate-50 hover:bg-slate-50">

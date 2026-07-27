@@ -33,7 +33,8 @@ export default function Performance() {
   const [goals, setGoals] = useState([])
   const [profiles, setProfiles] = useState([])
   const [orders, setOrders] = useState([])
-  const [month, setMonth] = useState(`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`)
+  // 默认展示下个月（当前 KPI 考核月，如 8 月），而非本月
+  const [month, setMonth] = useState(nextMonth(`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`))
   const [salesBy, setSalesBy] = useState('operator')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -72,11 +73,28 @@ export default function Performance() {
   const monthGoals = useMemo(
     () => goals.filter((g) => g.period === month).map((g) => {
       const actual = contentActual(g.operator_email, g.metric, month)
-      const rate = g.target ? Math.min(100, (actual / g.target) * 100) : 0
-      return { ...g, actual, rate }
+      const raw = g.target ? (actual / g.target) * 100 : 0
+      return { ...g, actual, raw, rate: Math.min(100, raw) }
     }),
     [goals, month, posts]
   )
+
+  // 按运营分组（看板卡片用）
+  const byOperator = useMemo(() => {
+    const map = {}
+    monthGoals.forEach((x) => {
+      const k = x.operator_email || x.operator_name || '未分配'
+      if (!map[k]) map[k] = { email: x.operator_email, name: x.operator_name || x.operator_email || '未分配', goals: [] }
+      map[k].goals.push(x)
+    })
+    return Object.values(map).map((o) => ({
+      ...o,
+      achieved: o.goals.filter((x) => x.target && x.actual >= x.target).length,
+      overall: o.goals.length ? o.goals.reduce((s, x) => s + x.raw, 0) / o.goals.length : 0,
+    }))
+  }, [monthGoals])
+
+  function fmtMetric(metric, v) { return metric === '互动率' ? v + '%' : compactEN(v) }
 
   const stats = useMemo(() => {
     const total = monthGoals.length
@@ -224,32 +242,46 @@ export default function Performance() {
         </ResponsiveContainer>
       </Card>
 
-      {/* KPI 指标列表 */}
-      <Card className="p-0">
-        <div className="px-5 py-4 font-semibold text-slate-800">{monthLabel(month)} · 指标列表</div>
-        {monthGoals.length === 0 ? (
-          <EmptyState icon={<Award size={28} />} title={loading ? '加载中…' : '本月暂无 KPI 指标'} hint="点「设定指标」为运营人员创建 KPI 目标，或用「同步到下月」复制上月目标" />
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="border-y border-slate-100 text-left text-xs text-slate-400">
-                <tr><th className="px-5 py-3">考核对象</th><th className="px-5 py-3">指标</th><th className="px-5 py-3">目标</th><th className="px-5 py-3">实际</th><th className="px-5 py-3">完成率</th></tr>
-              </thead>
-              <tbody>
-                {monthGoals.map((g) => (
-                  <tr key={g.id} className="border-b border-slate-50 hover:bg-slate-50">
-                    <td className="px-5 py-3 font-medium text-slate-700">{g.operator_name || g.operator_email}</td>
-                    <td className="px-5 py-3 text-slate-500">{g.metric}</td>
-                    <td className="px-5 py-3 text-slate-500">{g.metric === '互动率' ? g.target + '%' : compactEN(g.target)}</td>
-                    <td className="px-5 py-3 text-slate-500">{g.metric === '互动率' ? g.actual + '%' : compactEN(g.actual)}</td>
-                    <td className="px-5 py-3"><Badge color={g.rate >= 100 ? 'green' : g.rate >= 60 ? 'blue' : 'orange'}>{percent(g.rate)}</Badge></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Card>
+      {/* 人员绩效卡片 */}
+      <div className="mb-2 font-semibold text-slate-800">{monthLabel(month)} · 人员绩效</div>
+      {monthGoals.length === 0 ? (
+        <Card><EmptyState icon={<Award size={28} />} title={loading ? '加载中…' : '本月暂无 KPI 指标'} hint="点「设定指标」为运营人员创建 KPI 目标，或用「同步到下月」复制上月目标" /></Card>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          {byOperator.map((o) => (
+            <Card key={o.email || o.name}>
+              <div className="mb-4 flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-full bg-indigo-100 font-semibold text-indigo-700">{(o.name || '?')[0]}</div>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate font-semibold text-slate-800">{o.name}</div>
+                  <div className="truncate text-xs text-slate-400">{o.email}</div>
+                  <div className="mt-1 flex items-center gap-2 text-xs text-slate-400">
+                    <Badge color="blue">运营</Badge><span>{o.goals.length} 项指标</span>
+                    <span className={o.achieved === o.goals.length ? 'text-emerald-600' : 'text-slate-400'}>{o.achieved}/{o.goals.length} 达成</span>
+                  </div>
+                </div>
+                <Ring value={o.overall} />
+              </div>
+              <div className="space-y-3">
+                {o.goals.map((g) => {
+                  const color = g.raw >= 100 ? '#22c55e' : g.raw >= 60 ? '#3b82f6' : g.raw >= 30 ? '#f59e0b' : '#ef4444'
+                  return (
+                    <div key={g.id}>
+                      <div className="mb-1 flex items-center justify-between text-sm">
+                        <span className="text-slate-600">{g.metric}</span>
+                        <span className="font-medium" style={{ color }}>{fmtMetric(g.metric, g.actual)}/{fmtMetric(g.metric, g.target)} ({Math.round(g.raw)}%)</span>
+                      </div>
+                      <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
+                        <div className="h-full rounded-full" style={{ width: Math.min(100, g.raw) + '%', background: color }} />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
 
       <Modal open={modal} onClose={() => setModal(false)} title="设定 KPI 指标"
         footer={<><Button onClick={() => setModal(false)}>取消</Button><Button variant="primary" onClick={saveGoal}>保存</Button></>}>
@@ -275,5 +307,19 @@ export default function Performance() {
         </form>
       </Modal>
     </div>
+  )
+}
+
+function Ring({ value }) {
+  const pct = Math.max(0, Math.min(100, value || 0))
+  const R = 26, C = 2 * Math.PI * R
+  const color = value >= 100 ? '#22c55e' : value >= 60 ? '#3b82f6' : value >= 30 ? '#f59e0b' : '#ef4444'
+  return (
+    <svg width="64" height="64" viewBox="0 0 64 64" className="shrink-0">
+      <circle cx="32" cy="32" r={R} fill="none" stroke="#f1f5f9" strokeWidth="6" />
+      <circle cx="32" cy="32" r={R} fill="none" stroke={color} strokeWidth="6" strokeLinecap="round"
+        strokeDasharray={C} strokeDashoffset={C * (1 - pct / 100)} transform="rotate(-90 32 32)" />
+      <text x="32" y="37" textAnchor="middle" fontSize="13" fontWeight="700" fill={color}>{Math.round(value || 0)}%</text>
+    </svg>
   )
 }
