@@ -1,31 +1,147 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Award, RefreshCw, Plus, Target, CheckCircle2, TrendingUp, Users } from 'lucide-react'
+import {
+  ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend,
+} from 'recharts'
+import { Award, RefreshCw, Plus, Target, CheckCircle2, TrendingUp, Users, ShoppingCart, RefreshCcw } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { Card, StatCard } from '../components/ui/Card'
 import PageHeader from '../components/ui/PageHeader'
-import { Button, Tabs, EmptyState, Badge } from '../components/ui/Common'
-import { percent } from '../lib/format'
+import { Button, Tabs, EmptyState, Badge, Modal, Field, inputClass } from '../components/ui/Common'
+import { percent, money, compactEN } from '../lib/format'
+
+// KPI 指标：实际值自动从内容中心（posts）按运营 + 月份计算
+const METRICS = ['发帖数', '总播放量', '互动率']
+const COLORS = ['#6366f1', '#ec4899', '#22c55e', '#f59e0b', '#06b6d4', '#a855f7']
+
+const ym = (d) => (d ? String(d).slice(0, 7) : '')
+const monthLabel = (k) => (k ? `${k.slice(0, 4)}年${Number(k.slice(5, 7))}月` : '')
+function nextMonth(k) {
+  const [y, m] = k.split('-').map(Number)
+  return m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`
+}
+function recentMonths(n = 6) {
+  const out = []
+  const d = new Date()
+  for (let i = 0; i < n; i++) { out.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`); d.setMonth(d.getMonth() - 1) }
+  // 额外附上下个月，方便「同步到下月」后查看
+  const cur = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`
+  return [nextMonth(cur), ...out]
+}
 
 export default function Performance() {
+  const [posts, setPosts] = useState([])
   const [goals, setGoals] = useState([])
-  const [period, setPeriod] = useState('month')
+  const [profiles, setProfiles] = useState([])
+  const [orders, setOrders] = useState([])
+  const [month, setMonth] = useState(`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`)
+  const [salesBy, setSalesBy] = useState('operator')
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [modal, setModal] = useState(false)
+  const [form, setForm] = useState({ operator: '', metric: '发帖数', target: '', period: month })
 
   async function load() {
     setLoading(true)
-    const { data } = await supabase.from('kpi_goals').select('*')
-    setGoals(data || [])
+    const [{ data: ps }, { data: gs }, { data: pf }, { data: od }] = await Promise.all([
+      supabase.from('posts').select('*'),
+      supabase.from('kpi_goals').select('*'),
+      supabase.from('profiles').select('*').order('name'),
+      supabase.from('store_orders').select('*'),
+    ])
+    setPosts(ps || []); setGoals(gs || []); setProfiles(pf || []); setOrders(od || [])
     setLoading(false)
   }
   useEffect(() => { load() }, [])
 
+  const months = useMemo(() => recentMonths(6), [])
+
+  // 某运营在某月的内容实际数据
+  function contentActual(email, metric, mKey) {
+    const mine = posts.filter((p) => (p.operator_email === email) && ym(p.published_at) === mKey)
+    if (metric === '发帖数') return mine.length
+    if (metric === '总播放量') return mine.reduce((s, p) => s + (p.views || 0), 0)
+    if (metric === '互动率') {
+      const v = mine.reduce((s, p) => s + (p.views || 0), 0)
+      const e = mine.reduce((s, p) => s + (p.likes || 0) + (p.comments || 0) + (p.shares || 0) + (p.saves || 0), 0)
+      return v > 0 ? Number(((e / v) * 100).toFixed(2)) : 0
+    }
+    return 0
+  }
+
+  // 当月 KPI（目标来自 kpi_goals，实际自动计算）
+  const monthGoals = useMemo(
+    () => goals.filter((g) => g.period === month).map((g) => {
+      const actual = contentActual(g.operator_email, g.metric, month)
+      const rate = g.target ? Math.min(100, (actual / g.target) * 100) : 0
+      return { ...g, actual, rate }
+    }),
+    [goals, month, posts]
+  )
+
   const stats = useMemo(() => {
-    const total = goals.length
-    const achieved = goals.filter((g) => (g.actual || 0) >= (g.target || 0) && g.target).length
-    const avg = total ? goals.reduce((s, g) => s + (g.target ? Math.min(100, ((g.actual || 0) / g.target) * 100) : 0), 0) / total : 0
-    const people = new Set(goals.map((g) => g.operator_email).filter(Boolean)).size
+    const total = monthGoals.length
+    const achieved = monthGoals.filter((g) => g.target && g.actual >= g.target).length
+    const avg = total ? monthGoals.reduce((s, g) => s + g.rate, 0) / total : 0
+    const people = new Set(monthGoals.map((g) => g.operator_email).filter(Boolean)).size
     return { total, achieved, avg, people }
-  }, [goals])
+  }, [monthGoals])
+
+  // 销售额情况（自建站 store_orders）
+  const sales = useMemo(() => {
+    const inM = orders.filter((o) => ym(o.order_date) === month)
+    const key = salesBy === 'brand' ? 'brand_id' : 'operator_email'
+    const g = {}
+    inM.forEach((o) => {
+      const k = o[key] || '未分配'
+      if (!g[k]) g[k] = { key: k, name: (salesBy === 'brand' ? (o.brand_id || '未分配') : (o.operator_name || o.operator_email || '未分配')), count: 0, gross: 0, refund: 0 }
+      g[k].count += 1; g[k].gross += Number(o.amount || 0); g[k].refund += Number(o.refund_amount || 0)
+    })
+    const list = Object.values(g).map((x) => ({ ...x, net: x.gross - x.refund }))
+    const gross = list.reduce((s, x) => s + x.gross, 0)
+    const refund = list.reduce((s, x) => s + x.refund, 0)
+    return { list, gross, refund, net: gross - refund, count: inM.length, refundRate: gross > 0 ? (refund / gross) * 100 : 0 }
+  }, [orders, month, salesBy])
+
+  // 每月完成率趋势（各运营）
+  const trend = useMemo(() => {
+    const ops = [...new Set(goals.map((g) => g.operator_email).filter(Boolean))]
+    const series = [...months].reverse().filter((m) => m <= month || m === month)
+    const rows = series.map((mKey) => {
+      const row = { month: monthLabel(mKey).slice(5) }
+      ops.forEach((op) => {
+        const gs = goals.filter((g) => g.operator_email === op && g.period === mKey)
+        if (!gs.length) { row[op] = null; return }
+        const r = gs.reduce((s, g) => s + (g.target ? Math.min(100, (contentActual(op, g.metric, mKey) / g.target) * 100) : 0), 0) / gs.length
+        row[op] = Number(r.toFixed(0))
+      })
+      return row
+    })
+    const names = {}
+    ops.forEach((op) => { names[op] = profiles.find((p) => p.email === op)?.name || op })
+    return { rows, ops, names }
+  }, [goals, months, month, posts, profiles])
+
+  async function syncToNext() {
+    const nm = nextMonth(month)
+    if (!monthGoals.length) { alert('当前月没有可复制的 KPI 指标'); return }
+    if (!confirm(`把 ${monthLabel(month)} 的 ${monthGoals.length} 条 KPI 目标复制到 ${monthLabel(nm)}？`)) return
+    setSaving(true)
+    const rows = monthGoals.map((g) => ({ operator_email: g.operator_email, operator_name: g.operator_name, metric: g.metric, target: g.target, period: nm }))
+    await supabase.from('kpi_goals').insert(rows)
+    setSaving(false)
+    setMonth(nm); load()
+  }
+
+  async function saveGoal(e) {
+    e.preventDefault()
+    if (!form.operator || !form.target) return
+    const op = profiles.find((p) => p.email === form.operator)
+    await supabase.from('kpi_goals').insert({
+      operator_email: form.operator, operator_name: op?.name || form.operator.split('@')[0],
+      metric: form.metric, target: Number(form.target) || 0, period: form.period || month,
+    })
+    setModal(false); setForm({ operator: '', metric: '发帖数', target: '', period: month }); load()
+  }
 
   return (
     <div>
@@ -33,27 +149,17 @@ export default function Performance() {
         icon={<Award size={28} />}
         title="绩效看板"
         subtitle="KPI 指标 · 数据自动关联内容中心"
-        actions={
-          <>
-            <Button onClick={load}><RefreshCw size={16} /> 刷新</Button>
-            <Button variant="primary"><Plus size={16} /> 设定指标</Button>
-          </>
-        }
+        actions={<>
+          <Button onClick={load}><RefreshCw size={16} /> 刷新</Button>
+          <Button variant="primary" onClick={() => { setForm({ operator: '', metric: '发帖数', target: '', period: month }); setModal(true) }}><Plus size={16} /> 设定指标</Button>
+        </>}
       />
 
       <Card className="mb-6 flex flex-wrap items-center gap-3">
         <span className="text-sm text-slate-500">时间筛选</span>
-        <Tabs
-          tabs={[
-            { value: 'all', label: '全部' },
-            { value: 'month', label: '月度' },
-            { value: 'quarter', label: '季度' },
-            { value: 'year', label: '年度' },
-          ]}
-          value={period}
-          onChange={setPeriod}
-        />
-        <select className="rounded-xl border border-slate-200 px-3 py-2 text-sm"><option>本月</option></select>
+        <select value={month} onChange={(e) => setMonth(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm">
+          {months.map((m) => <option key={m} value={m}>{monthLabel(m)}</option>)}
+        </select>
       </Card>
 
       <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -63,34 +169,111 @@ export default function Performance() {
         <StatCard icon={<Users size={20} />} value={stats.people || '—'} label="考核人数" />
       </div>
 
-      <Card className="p-0">
-        {goals.length === 0 ? (
-          <EmptyState icon={<Award size={28} />} title={loading ? '加载中…' : '暂无 KPI 指标'} hint="点击「设定指标」为运营设置考核目标" />
+      {/* 销售额情况 */}
+      <Card className="mb-6">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2 font-semibold text-slate-800"><ShoppingCart size={18} /> 销售额情况 <span className="text-xs font-normal text-slate-400">{monthLabel(month).slice(5)}</span></div>
+          <div className="flex items-center gap-3">
+            <Tabs tabs={[{ value: 'operator', label: '按运营' }, { value: 'brand', label: '按品牌' }]} value={salesBy} onChange={setSalesBy} />
+            <span className="text-xs text-slate-400">数据来源：自建站</span>
+          </div>
+        </div>
+        {sales.list.length === 0 ? (
+          <div className="py-8 text-center text-sm text-slate-400">{loading ? '加载中…' : '本月暂无自建站订单数据'}</div>
         ) : (
-          <table className="w-full text-sm">
-            <thead className="border-b border-slate-100 text-left text-xs text-slate-400">
-              <tr>
-                <th className="px-5 py-3">考核对象</th><th className="px-5 py-3">指标</th>
-                <th className="px-5 py-3">目标</th><th className="px-5 py-3">实际</th><th className="px-5 py-3">完成率</th>
-              </tr>
-            </thead>
-            <tbody>
-              {goals.map((g) => {
-                const rate = g.target ? Math.min(100, ((g.actual || 0) / g.target) * 100) : 0
-                return (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {sales.list.map((s) => (
+              <div key={s.key} className="rounded-2xl border border-slate-100 p-4">
+                <div className="mb-3 flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-100 font-semibold text-indigo-700">{(s.name || '?')[0]}</div>
+                  <div><div className="font-semibold text-slate-800">{s.name}</div><div className="text-xs text-slate-400">{monthLabel(month).slice(5)} · {s.count} 笔订单</div></div>
+                </div>
+                <div className="grid grid-cols-3 gap-3 text-center">
+                  <div><div className="text-lg font-bold text-emerald-600">{money(s.gross)}</div><div className="text-xs text-slate-400">总销售额</div></div>
+                  <div><div className="text-lg font-bold text-rose-500">{money(s.refund)}</div><div className="text-xs text-slate-400">退款金额</div></div>
+                  <div><div className="text-lg font-bold text-slate-800">{money(s.net)}</div><div className="text-xs text-slate-400">净销售额</div></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="mt-4 grid grid-cols-2 gap-3 border-t border-slate-100 pt-4 md:grid-cols-4">
+          <div className="text-center"><div className="text-lg font-bold text-emerald-600">{money(sales.gross)}</div><div className="text-xs text-slate-400">月总销售额</div></div>
+          <div className="text-center"><div className="text-lg font-bold text-slate-800">{money(sales.net)}</div><div className="text-xs text-slate-400">月净销售额</div></div>
+          <div className="text-center"><div className="text-lg font-bold text-slate-800">{sales.refundRate.toFixed(1)}%</div><div className="text-xs text-slate-400">退款率</div></div>
+          <div className="text-center"><div className="text-lg font-bold text-slate-800">{sales.count}</div><div className="text-xs text-slate-400">期间订单数</div></div>
+        </div>
+      </Card>
+
+      {/* 人员绩效 */}
+      <Card className="mb-6">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="font-semibold text-slate-800">人员绩效</div>
+          <Button onClick={syncToNext} disabled={saving}><RefreshCcw size={16} /> 同步到{monthLabel(nextMonth(month)).slice(5)}</Button>
+        </div>
+        <div className="mb-2 text-xs text-slate-400">各运营人员月度 KPI 平均完成率变化</div>
+        <ResponsiveContainer width="100%" height={240}>
+          <LineChart data={trend.rows}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+            <XAxis dataKey="month" tick={{ fontSize: 12, fill: '#94a3b8' }} />
+            <YAxis domain={[0, 100]} tick={{ fontSize: 12, fill: '#94a3b8' }} unit="%" />
+            <Tooltip />
+            <Legend />
+            {trend.ops.map((op, i) => <Line key={op} type="monotone" dataKey={op} name={trend.names[op]} stroke={COLORS[i % COLORS.length]} strokeWidth={2} connectNulls />)}
+          </LineChart>
+        </ResponsiveContainer>
+      </Card>
+
+      {/* KPI 指标列表 */}
+      <Card className="p-0">
+        <div className="px-5 py-4 font-semibold text-slate-800">{monthLabel(month)} · 指标列表</div>
+        {monthGoals.length === 0 ? (
+          <EmptyState icon={<Award size={28} />} title={loading ? '加载中…' : '本月暂无 KPI 指标'} hint="点「设定指标」为运营人员创建 KPI 目标，或用「同步到下月」复制上月目标" />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="border-y border-slate-100 text-left text-xs text-slate-400">
+                <tr><th className="px-5 py-3">考核对象</th><th className="px-5 py-3">指标</th><th className="px-5 py-3">目标</th><th className="px-5 py-3">实际</th><th className="px-5 py-3">完成率</th></tr>
+              </thead>
+              <tbody>
+                {monthGoals.map((g) => (
                   <tr key={g.id} className="border-b border-slate-50 hover:bg-slate-50">
                     <td className="px-5 py-3 font-medium text-slate-700">{g.operator_name || g.operator_email}</td>
                     <td className="px-5 py-3 text-slate-500">{g.metric}</td>
-                    <td className="px-5 py-3 text-slate-500">{g.target}</td>
-                    <td className="px-5 py-3 text-slate-500">{g.actual || 0}</td>
-                    <td className="px-5 py-3"><Badge color={rate >= 100 ? 'green' : rate >= 60 ? 'blue' : 'orange'}>{percent(rate)}</Badge></td>
+                    <td className="px-5 py-3 text-slate-500">{g.metric === '互动率' ? g.target + '%' : compactEN(g.target)}</td>
+                    <td className="px-5 py-3 text-slate-500">{g.metric === '互动率' ? g.actual + '%' : compactEN(g.actual)}</td>
+                    <td className="px-5 py-3"><Badge color={g.rate >= 100 ? 'green' : g.rate >= 60 ? 'blue' : 'orange'}>{percent(g.rate)}</Badge></td>
                   </tr>
-                )
-              })}
-            </tbody>
-          </table>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </Card>
+
+      <Modal open={modal} onClose={() => setModal(false)} title="设定 KPI 指标"
+        footer={<><Button onClick={() => setModal(false)}>取消</Button><Button variant="primary" onClick={saveGoal}>保存</Button></>}>
+        <form onSubmit={saveGoal} className="grid grid-cols-2 gap-4">
+          <Field label="运营人员">
+            <select className={inputClass} value={form.operator} onChange={(e) => setForm({ ...form, operator: e.target.value })}>
+              <option value="">选择运营</option>
+              {profiles.map((p) => <option key={p.id} value={p.email}>{p.name || p.email}</option>)}
+            </select>
+          </Field>
+          <Field label="指标">
+            <select className={inputClass} value={form.metric} onChange={(e) => setForm({ ...form, metric: e.target.value })}>
+              {METRICS.map((m) => <option key={m} value={m}>{m}</option>)}
+            </select>
+          </Field>
+          <Field label="目标值"><input type="number" className={inputClass} value={form.target} onChange={(e) => setForm({ ...form, target: e.target.value })} placeholder={form.metric === '互动率' ? '如 5（表示 5%）' : '如 20'} /></Field>
+          <Field label="考核月份">
+            <select className={inputClass} value={form.period} onChange={(e) => setForm({ ...form, period: e.target.value })}>
+              {months.map((m) => <option key={m} value={m}>{monthLabel(m)}</option>)}
+            </select>
+          </Field>
+          <div className="col-span-2 text-xs text-slate-400">实际完成值会自动从内容中心按运营 + 月份计算（发帖数 / 总播放量 / 互动率），无需手动填。</div>
+        </form>
+      </Modal>
     </div>
   )
 }

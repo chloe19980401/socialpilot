@@ -13,6 +13,28 @@ import PageHeader from '../components/ui/PageHeader'
 import { Button, Tabs, Modal, Field, inputClass, Badge, EmptyState } from '../components/ui/Common'
 import { platformMeta, PLATFORMS } from '../lib/platforms'
 import { compactEN, formatDate } from '../lib/format'
+import { useAuth } from '../context/AuthContext'
+
+// 从链接自动识别平台
+function detectPlatform(url) {
+  const u = (url || '').toLowerCase()
+  if (u.includes('youtube.com') || u.includes('youtu.be')) return 'youtube'
+  if (u.includes('tiktok.com')) return 'tiktok'
+  if (u.includes('instagram.com')) return 'instagram'
+  if (u.includes('facebook.com') || u.includes('fb.watch')) return 'facebook'
+  return ''
+}
+// 从链接解析帖子 ID（供同步按 external_id 匹配、自动回填互动数据）
+function parseExternalId(url, platform) {
+  try {
+    const u = new URL(url)
+    if (platform === 'youtube') return u.searchParams.get('v') || u.pathname.split('/').filter(Boolean).pop() || null
+    if (platform === 'tiktok') { const m = u.pathname.match(/\/video\/(\d+)/); return m ? m[1] : null }
+    if (platform === 'instagram') { const m = u.pathname.match(/\/(?:p|reel|tv)\/([^/]+)/); return m ? m[1] : null }
+    if (platform === 'facebook') { const m = u.pathname.match(/\/(?:posts|videos|photos)\/([^/]+)/); return m ? m[1] : null }
+  } catch { /* ignore */ }
+  return null
+}
 
 const PLATFORM_KEYS = Object.keys(PLATFORMS)
 const METRICS = [
@@ -23,7 +45,7 @@ const METRICS = [
   { key: 'engagement', label: '平均互动率', icon: <TrendingUp size={20} />, fmt: () => '0.00%' },
 ]
 const RANGES = [{ value: 7, label: '近7天' }, { value: 14, label: '近14天' }, { value: 30, label: '近30天' }]
-const emptyPost = { title: '', platform: 'instagram', brand_id: '', published_at: '', operator: '', designer: '', likes: 0, views: 0, comments: 0, thumbnail_url: '' }
+const emptyPost = { url: '', title: '', platform: 'instagram', brand_id: '', published_at: '', designer: '', thumbnail_url: '' }
 
 export default function Content() {
   const [posts, setPosts] = useState([])
@@ -37,6 +59,7 @@ export default function Content() {
   const [modal, setModal] = useState(false)
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState(emptyPost)
+  const { profile } = useAuth()
 
   async function load() {
     setLoading(true)
@@ -105,24 +128,26 @@ export default function Content() {
   function openEdit(p) {
     setEditing(p)
     setForm({
-      title: p.title || '', platform: p.platform || 'instagram', brand_id: p.brand_id || '',
+      url: p.url || '', title: p.title || '', platform: p.platform || 'instagram', brand_id: p.brand_id || '',
       published_at: p.published_at ? p.published_at.slice(0, 10) : '',
-      operator: p.operator_email || '', designer: p.designer_email || '',
-      likes: p.likes || 0, views: p.views || 0, comments: p.comments || 0, thumbnail_url: p.thumbnail_url || '',
+      designer: p.designer_email || '', thumbnail_url: p.thumbnail_url || '',
     })
     setModal(true)
   }
 
   async function savePost(e) {
     e.preventDefault()
-    const op = profiles.find((x) => x.email === form.operator)
     const de = profiles.find((x) => x.email === form.designer)
+    const platform = detectPlatform(form.url) || form.platform
     const row = {
-      title: form.title, platform: form.platform, brand_id: form.brand_id || null,
+      url: form.url || null,
+      external_id: parseExternalId(form.url, platform),
+      title: form.title || null, platform, brand_id: form.brand_id || null,
       published_at: form.published_at || null,
-      operator_email: form.operator || null, operator_name: op?.name || null,
+      // 运营默认记为当前登录账号；编辑时保留原运营
+      operator_email: editing ? editing.operator_email : (profile?.email || null),
+      operator_name: editing ? editing.operator_name : (profile?.name || null),
       designer_email: form.designer || null, designer_name: de?.name || null,
-      likes: Number(form.likes) || 0, views: Number(form.views) || 0, comments: Number(form.comments) || 0,
       thumbnail_url: form.thumbnail_url || null,
     }
     if (editing) await supabase.from('posts').update(row).eq('id', editing.id)
@@ -273,11 +298,19 @@ export default function Content() {
         footer={<><Button onClick={() => setModal(false)}>取消</Button><Button variant="primary" onClick={savePost}>保存</Button></>}
       >
         <form onSubmit={savePost} className="grid grid-cols-2 gap-4">
-          <div className="col-span-2"><Field label="标题"><input className={inputClass} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="帖子标题/文案" /></Field></div>
-          <Field label="平台">
-            <select className={inputClass} value={form.platform} onChange={(e) => setForm({ ...form, platform: e.target.value })}>
-              {PLATFORM_KEYS.map((k) => <option key={k} value={k}>{platformMeta(k).label}</option>)}
-            </select>
+          <div className="col-span-2"><Field label="帖子链接"><input className={inputClass} value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} placeholder="粘贴帖子链接，自动识别平台（YouTube / TikTok / Instagram / Facebook）" /></Field></div>
+          <Field label="平台（自动识别）">
+            {(() => {
+              const pf = detectPlatform(form.url)
+              const meta = platformMeta(pf || form.platform)
+              const { Icon } = meta
+              return (
+                <div className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-600">
+                  <Icon size={16} style={{ color: meta.color }} />
+                  <span>{pf ? meta.label : '粘贴链接后自动识别'}</span>
+                </div>
+              )
+            })()}
           </Field>
           <Field label="品牌">
             <select className={inputClass} value={form.brand_id} onChange={(e) => setForm({ ...form, brand_id: e.target.value })}>
@@ -285,24 +318,15 @@ export default function Content() {
               {brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
             </select>
           </Field>
-          <Field label="运营（负责人）">
-            <select className={inputClass} value={form.operator} onChange={(e) => setForm({ ...form, operator: e.target.value })}>
-              <option value="">未分配</option>
-              {profiles.map((p) => <option key={p.id} value={p.email}>{p.name || p.email}</option>)}
-            </select>
-          </Field>
-          <Field label="设计师">
+          <div className="col-span-2"><Field label="标题 / 文案（可选）"><input className={inputClass} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="留空则同步时自动回填" /></Field></div>
+          <Field label="设计师（可选）">
             <select className={inputClass} value={form.designer} onChange={(e) => setForm({ ...form, designer: e.target.value })}>
               <option value="">未分配</option>
               {profiles.map((p) => <option key={p.id} value={p.email}>{p.name || p.email}</option>)}
             </select>
           </Field>
-          <Field label="发布日期"><input type="date" className={inputClass} value={form.published_at} onChange={(e) => setForm({ ...form, published_at: e.target.value })} /></Field>
-          <Field label="链接/封面URL（可选）"><input className={inputClass} value={form.thumbnail_url} onChange={(e) => setForm({ ...form, thumbnail_url: e.target.value })} placeholder="帖子链接或封面图" /></Field>
-          <Field label="点赞"><input type="number" className={inputClass} value={form.likes} onChange={(e) => setForm({ ...form, likes: e.target.value })} /></Field>
-          <Field label="播放"><input type="number" className={inputClass} value={form.views} onChange={(e) => setForm({ ...form, views: e.target.value })} /></Field>
-          <Field label="评论"><input type="number" className={inputClass} value={form.comments} onChange={(e) => setForm({ ...form, comments: e.target.value })} /></Field>
-          <div className="col-span-2 text-xs text-slate-400">运营和设计师从「设置 → 用户管理」里的账号选择。没有可选项时，先去那里创建协作者。</div>
+          <Field label="发布日期（可选）"><input type="date" className={inputClass} value={form.published_at} onChange={(e) => setForm({ ...form, published_at: e.target.value })} /></Field>
+          <div className="col-span-2 text-xs text-slate-400">运营默认记为当前登录账号（{profile?.name || profile?.email || '本人'}）。点赞 / 播放 / 评论会在同步时按链接自动更新，无需手动填写。</div>
         </form>
       </Modal>
     </div>

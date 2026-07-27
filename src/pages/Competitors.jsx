@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
-import { BarChart3, Plus, List, LayoutGrid, Search, Trash2, RefreshCw } from 'lucide-react'
+import { ResponsiveContainer, LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts'
+import { BarChart3, Plus, List, LayoutGrid, Search, Trash2, RefreshCw, ExternalLink, Heart, MessageCircle, Share2, Eye } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { syncAll } from '../lib/sync'
 import { Card } from '../components/ui/Card'
 import PageHeader from '../components/ui/PageHeader'
 import { Button, EmptyState, Modal, Field, inputClass } from '../components/ui/Common'
 import { platformMeta, PLATFORMS } from '../lib/platforms'
-import { compactEN } from '../lib/format'
+import { compactEN, formatDate } from '../lib/format'
 
 const PLATFORM_FILTERS = ['all', 'instagram', 'youtube', 'linkedin', 'tiktok']
 
@@ -16,6 +17,7 @@ export default function Competitors() {
   const [q, setQ] = useState('')
   const [pf, setPf] = useState('all')
   const [selected, setSelected] = useState(null)
+  const [cpPosts, setCpPosts] = useState([])
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
   const [addModal, setAddModal] = useState(false)
@@ -116,6 +118,44 @@ export default function Competitors() {
     return list.length ? list : ['instagram', 'youtube']
   }, [byPlatform])
 
+  // 选中竞品时加载其帖子记录
+  useEffect(() => {
+    if (!selected) { setCpPosts([]); return }
+    supabase.from('competitor_posts').select('*').eq('competitor_id', selected.id)
+      .order('published_at', { ascending: false, nullsFirst: false })
+      .then(({ data }) => setCpPosts(data || []))
+  }, [selected])
+
+  const cpStats = useMemo(() => {
+    const n = cpPosts.length
+    const likes = cpPosts.reduce((s, p) => s + (p.likes || 0), 0)
+    const comments = cpPosts.reduce((s, p) => s + (p.comments || 0), 0)
+    const shares = cpPosts.reduce((s, p) => s + (p.shares || 0), 0)
+    const views = cpPosts.reduce((s, p) => s + (p.views || 0), 0)
+    const eng = likes + comments + shares
+    return {
+      count: n, totalEng: eng,
+      avgLikes: n ? Math.round(likes / n) : 0,
+      avgComments: n ? Math.round(comments / n) : 0,
+      avgShares: n ? Math.round(shares / n) : 0,
+      avgViews: n ? Math.round(views / n) : 0,
+      rate: views > 0 ? (eng / views) * 100 : 0,
+    }
+  }, [cpPosts])
+
+  const cpChart = useMemo(
+    () => [...cpPosts].reverse().map((p, i) => ({
+      name: p.published_at ? formatDate(p.published_at) : `#${i + 1}`,
+      点赞: p.likes || 0, 评论: p.comments || 0, 分享: p.shares || 0, 播放: p.views || 0,
+      互动: (p.likes || 0) + (p.comments || 0) + (p.shares || 0),
+    })),
+    [cpPosts]
+  )
+  function engRate(p) {
+    if (!p.views || p.views <= 0) return null
+    return (((p.likes || 0) + (p.comments || 0) + (p.shares || 0)) / p.views) * 100
+  }
+
   return (
     <div>
       <PageHeader
@@ -200,19 +240,91 @@ export default function Competitors() {
         <Card>
           {selected ? (
             <div>
-              <div className="mb-4 flex items-center gap-3">
+              <div className="mb-5 flex items-center gap-3">
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 font-semibold text-slate-600">{selected.name[0]}</div>
                 <div className="flex-1">
-                  <div className="text-lg font-bold text-slate-900">{selected.name}</div>
-                  <div className="text-sm text-slate-400">@{selected.handle} · {platformMeta(selected.platform).label}</div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg font-bold text-slate-900">{selected.name}</span>
+                    {(() => { const m = platformMeta(selected.platform); const { Icon } = m; return <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs" style={{ color: m.color }}><Icon size={12} /> {m.label}</span> })()}
+                  </div>
+                  <div className="text-sm text-slate-400">@{selected.handle}{selected.last_synced_at ? ` · 上次同步 ${formatDate(selected.last_synced_at)}` : ''}</div>
                 </div>
                 <button onClick={() => removeCompetitor(selected.id)} className="text-slate-300 hover:text-red-500" title="删除竞品"><Trash2 size={18} /></button>
               </div>
-              <div className="grid grid-cols-3 gap-4">
-                <div className="rounded-xl bg-slate-50 p-4 text-center"><div className="text-xl font-bold">{compactEN(selected.followers)}</div><div className="text-xs text-slate-400">粉丝</div></div>
-                <div className="rounded-xl bg-slate-50 p-4 text-center"><div className="text-xl font-bold">{selected.posts_count ?? '—'}</div><div className="text-xs text-slate-400">帖子</div></div>
-                <div className="rounded-xl bg-slate-50 p-4 text-center"><div className="text-xl font-bold">{selected.engagement ?? '—'}</div><div className="text-xs text-slate-400">互动率</div></div>
+
+              <div className="mb-5 flex flex-wrap gap-6">
+                <div><div className="text-2xl font-bold text-slate-900">{compactEN(selected.followers)}</div><div className="text-xs text-slate-400">粉丝</div></div>
+                <div><div className="text-2xl font-bold text-slate-900">{selected.posts_count ?? cpStats.count}</div><div className="text-xs text-slate-400">帖子</div></div>
+                <div><div className="text-2xl font-bold text-emerald-600">{cpStats.rate ? cpStats.rate.toFixed(2) + '%' : '—'}</div><div className="text-xs text-slate-400">互动率</div></div>
               </div>
+
+              <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+                <div className="rounded-2xl border border-slate-100 p-4"><div className="mb-1 text-blue-500"><BarChart3 size={16} /></div><div className="text-xl font-bold">{compactEN(cpStats.totalEng)}</div><div className="text-xs text-slate-400">总互动</div></div>
+                <div className="rounded-2xl border border-slate-100 p-4"><div className="mb-1 text-pink-500"><Heart size={16} /></div><div className="text-xl font-bold">{compactEN(cpStats.avgLikes)}</div><div className="text-xs text-slate-400">平均点赞</div></div>
+                <div className="rounded-2xl border border-slate-100 p-4"><div className="mb-1 text-green-500"><MessageCircle size={16} /></div><div className="text-xl font-bold">{compactEN(cpStats.avgComments)}</div><div className="text-xs text-slate-400">平均评论</div></div>
+                <div className="rounded-2xl border border-slate-100 p-4"><div className="mb-1 text-orange-500"><Eye size={16} /></div><div className="text-xl font-bold">{compactEN(cpStats.avgViews)}</div><div className="text-xs text-slate-400">平均播放</div></div>
+              </div>
+
+              {cpPosts.length === 0 ? (
+                <div className="rounded-2xl bg-slate-50 py-10 text-center text-sm text-slate-400">
+                  暂无帖子记录。<br />YouTube 竞品会在同步后自动抓取；Instagram / TikTok / Facebook 竞品官方接口拿不到帖子级数据。
+                </div>
+              ) : (
+                <>
+                  <div className="mb-5 grid grid-cols-1 gap-4 xl:grid-cols-2">
+                    <div className="rounded-2xl border border-slate-100 p-4">
+                      <div className="mb-2 text-sm font-semibold text-slate-700">互动趋势</div>
+                      <ResponsiveContainer width="100%" height={200}>
+                        <LineChart data={cpChart}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                          <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#94a3b8' }} />
+                          <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} />
+                          <Tooltip /><Legend />
+                          <Line type="monotone" dataKey="点赞" stroke="#ec4899" strokeWidth={2} dot={false} />
+                          <Line type="monotone" dataKey="评论" stroke="#6366f1" strokeWidth={2} dot={false} />
+                          <Line type="monotone" dataKey="分享" stroke="#22c55e" strokeWidth={2} dot={false} />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="rounded-2xl border border-slate-100 p-4">
+                      <div className="mb-2 text-sm font-semibold text-slate-700">播放量 vs 互动</div>
+                      <ResponsiveContainer width="100%" height={200}>
+                        <BarChart data={cpChart}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                          <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#94a3b8' }} />
+                          <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} />
+                          <Tooltip /><Legend />
+                          <Bar dataKey="播放" fill="#334155" />
+                          <Bar dataKey="互动" fill="#ec4899" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+
+                  <div className="mb-2 text-sm font-semibold text-slate-700">帖子记录 <span className="text-xs font-normal text-slate-400">共 {cpPosts.length} 条</span></div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="border-y border-slate-100 text-left text-xs text-slate-400">
+                        <tr><th className="px-3 py-2">内容</th><th className="px-3 py-2">点赞</th><th className="px-3 py-2">评论</th><th className="px-3 py-2">分享</th><th className="px-3 py-2">播放</th><th className="px-3 py-2">互动率</th><th className="px-3 py-2">发布</th><th className="px-3 py-2"></th></tr>
+                      </thead>
+                      <tbody>
+                        {cpPosts.map((p) => (
+                          <tr key={p.id} className="border-b border-slate-50 hover:bg-slate-50">
+                            <td className="max-w-[200px] truncate px-3 py-2 text-slate-700" title={p.title || ''}>{p.title || '（无标题）'}</td>
+                            <td className="px-3 py-2 text-pink-500">{compactEN(p.likes)}</td>
+                            <td className="px-3 py-2 text-indigo-500">{compactEN(p.comments)}</td>
+                            <td className="px-3 py-2 text-green-500">{compactEN(p.shares)}</td>
+                            <td className="px-3 py-2 text-slate-500">{compactEN(p.views)}</td>
+                            <td className="px-3 py-2 font-medium text-slate-700">{engRate(p) == null ? '—' : engRate(p).toFixed(2) + '%'}</td>
+                            <td className="px-3 py-2 text-slate-400">{formatDate(p.published_at)}</td>
+                            <td className="px-3 py-2">{p.url ? <a href={p.url} target="_blank" rel="noreferrer" className="text-slate-400 hover:text-brand-600"><ExternalLink size={14} /></a> : null}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
             </div>
           ) : (
             <EmptyState icon={<BarChart3 size={28} />} title="选择竞品账号" hint="从左侧列表选择一个竞品账号，查看详细数据分析" />
