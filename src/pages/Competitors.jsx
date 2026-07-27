@@ -4,11 +4,11 @@ import { supabase } from '../lib/supabase'
 import { syncAll } from '../lib/sync'
 import { Card } from '../components/ui/Card'
 import PageHeader from '../components/ui/PageHeader'
-import { Button, EmptyState } from '../components/ui/Common'
-import { platformMeta } from '../lib/platforms'
+import { Button, EmptyState, Modal, Field, inputClass } from '../components/ui/Common'
+import { platformMeta, PLATFORMS } from '../lib/platforms'
 import { compactEN } from '../lib/format'
 
-const PLATFORM_FILTERS = ['all', 'instagram', 'facebook', 'youtube', 'tiktok']
+const PLATFORM_FILTERS = ['all', 'instagram', 'youtube', 'linkedin', 'tiktok']
 
 export default function Competitors() {
   const [items, setItems] = useState([])
@@ -18,6 +18,43 @@ export default function Competitors() {
   const [selected, setSelected] = useState(null)
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
+  const [addModal, setAddModal] = useState(false)
+  const [addForm, setAddForm] = useState({ name: '', group_name: '', platform: 'youtube', profile_url: '', handle: '', followers: '' })
+
+  function handleFromUrl(url) {
+    try {
+      const u = new URL(url.trim())
+      const parts = u.pathname.split('/').filter(Boolean)
+      const at = parts.find((p) => p.startsWith('@'))
+      if (at) return at.slice(1)
+      if (parts.length) return parts[parts.length - 1].replace(/^@/, '')
+      return u.hostname
+    } catch { return (url || '').trim().replace(/^@/, '') }
+  }
+
+  async function addCompetitor(e) {
+    e.preventDefault()
+    if (!addForm.name) return
+    const url = addForm.profile_url.trim()
+    await supabase.from('competitors').insert({
+      name: addForm.name,
+      group_name: addForm.group_name || addForm.name,
+      platform: addForm.platform,
+      profile_url: url || null,
+      handle: addForm.handle.trim() || (url ? handleFromUrl(url) : null),
+      followers: Number(addForm.followers) || 0,
+    })
+    setAddModal(false)
+    setAddForm({ name: '', group_name: '', platform: 'youtube', profile_url: '', handle: '', followers: '' })
+    load()
+  }
+
+  async function removeCompetitor(id) {
+    if (!confirm('删除该竞品账号？')) return
+    await supabase.from('competitors').delete().eq('id', id)
+    if (selected?.id === id) setSelected(null)
+    load()
+  }
 
   async function handleSync() {
     setSyncing(true)
@@ -70,7 +107,14 @@ export default function Competitors() {
     return g
   }, [filtered])
 
-  const platformCards = ['instagram', 'facebook', 'youtube']
+  const PREF_ORDER = ['instagram', 'youtube', 'linkedin', 'tiktok', 'facebook']
+  const platformCards = useMemo(() => {
+    const present = Object.keys(byPlatform)
+    const ordered = PREF_ORDER.filter((p) => present.includes(p))
+    const rest = present.filter((p) => !PREF_ORDER.includes(p))
+    const list = [...ordered, ...rest]
+    return list.length ? list : ['instagram', 'youtube']
+  }, [byPlatform])
 
   return (
     <div>
@@ -84,12 +128,12 @@ export default function Competitors() {
               <button onClick={() => setView('compare')} className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm ${view === 'compare' ? 'bg-white shadow-sm' : 'text-slate-500'}`}><LayoutGrid size={16} /> 对比看板</button>
             </div>
             <Button onClick={handleSync} disabled={syncing}><RefreshCw size={16} className={syncing ? 'animate-spin' : ''} /> {syncing ? '同步中…' : '同步数据'}</Button>
-            <Button variant="primary"><Plus size={16} /> 添加竞品</Button>
+            <Button variant="primary" onClick={() => setAddModal(true)}><Plus size={16} /> 添加竞品</Button>
           </>
         }
       />
 
-      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {platformCards.map((p) => {
           const meta = platformMeta(p)
           const { Icon } = meta
@@ -158,10 +202,11 @@ export default function Competitors() {
             <div>
               <div className="mb-4 flex items-center gap-3">
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 font-semibold text-slate-600">{selected.name[0]}</div>
-                <div>
+                <div className="flex-1">
                   <div className="text-lg font-bold text-slate-900">{selected.name}</div>
                   <div className="text-sm text-slate-400">@{selected.handle} · {platformMeta(selected.platform).label}</div>
                 </div>
+                <button onClick={() => removeCompetitor(selected.id)} className="text-slate-300 hover:text-red-500" title="删除竞品"><Trash2 size={18} /></button>
               </div>
               <div className="grid grid-cols-3 gap-4">
                 <div className="rounded-xl bg-slate-50 p-4 text-center"><div className="text-xl font-bold">{compactEN(selected.followers)}</div><div className="text-xs text-slate-400">粉丝</div></div>
@@ -174,6 +219,27 @@ export default function Competitors() {
           )}
         </Card>
       </div>
+
+      <Modal
+        open={addModal}
+        onClose={() => setAddModal(false)}
+        title="添加竞品"
+        footer={<><Button onClick={() => setAddModal(false)}>取消</Button><Button variant="primary" onClick={addCompetitor}>添加</Button></>}
+      >
+        <form onSubmit={addCompetitor} className="grid grid-cols-2 gap-4">
+          <div className="col-span-2"><Field label="名称"><input className={inputClass} value={addForm.name} onChange={(e) => setAddForm({ ...addForm, name: e.target.value })} placeholder="例如 ASSA ABLOY" /></Field></div>
+          <Field label="分组（可选）"><input className={inputClass} value={addForm.group_name} onChange={(e) => setAddForm({ ...addForm, group_name: e.target.value })} placeholder="同品牌多平台归一组" /></Field>
+          <Field label="平台">
+            <select className={inputClass} value={addForm.platform} onChange={(e) => setAddForm({ ...addForm, platform: e.target.value })}>
+              {Object.keys(PLATFORMS).map((k) => <option key={k} value={k}>{platformMeta(k).label}</option>)}
+            </select>
+          </Field>
+          <div className="col-span-2"><Field label="主页链接"><input className={inputClass} value={addForm.profile_url} onChange={(e) => setAddForm({ ...addForm, profile_url: e.target.value })} placeholder="粘贴主页链接（YouTube/Instagram 可自动同步）" /></Field></div>
+          <Field label="用户名 handle（可选）"><input className={inputClass} value={addForm.handle} onChange={(e) => setAddForm({ ...addForm, handle: e.target.value })} placeholder="留空则从链接提取" /></Field>
+          <Field label="粉丝数（手动填）"><input type="number" className={inputClass} value={addForm.followers} onChange={(e) => setAddForm({ ...addForm, followers: e.target.value })} placeholder="LinkedIn/TikTok 等手动填" /></Field>
+          <p className="col-span-2 text-xs text-slate-400">YouTube、Instagram 可点「同步数据」自动抓取粉丝；LinkedIn / Facebook / TikTok 官方接口拿不到竞品数据，请手动填粉丝数。</p>
+        </form>
+      </Modal>
     </div>
   )
 }

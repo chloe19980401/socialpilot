@@ -119,10 +119,12 @@ supabase functions deploy sync-instagram
 
 1. 打开 [developers.tiktok.com](https://developers.tiktok.com/) → 注册开发者
 2. **Manage apps → Create an app**
-3. 添加产品 **Login Kit** 和 **Display API**
-4. 申请 scope：`user.info.basic`、`user.info.stats`
+3. 添加产品 **Login Kit**（Display API 能力已并入 Login Kit 的 scope）
+4. 申请 scope：`user.info.basic`、`user.info.stats`、**`video.list`**
+   （`video.list` 是拉「帖子/视频列表」必需的，缺它只能拿到账号粉丝/点赞总数）
 5. 走一遍 OAuth 授权流程（用你的 TikTok 账号登录授权），拿到 **access_token**
    - OAuth 回调、换 token 的细节见 TikTok 文档 *Login Kit → Manage User Access Tokens*
+   - 详细图文步骤见 `docs/TikTok接入指南.md`
 
 ### 配置 & 部署
 
@@ -131,7 +133,16 @@ supabase secrets set TIKTOK_ACCESS_TOKEN=授权拿到的token
 supabase functions deploy sync-tiktok
 ```
 
-> TikTok 的 token 有效期较短，正式使用要保存 refresh_token 定期续期。若暂时不接，`competitors` 里 TikTok 那几条就先手动填粉丝数。
+### 本函数会同步什么
+
+- **账号级**：粉丝数 → `accounts.followers`；粉丝/点赞/视频数 → `metric_snapshots`
+- **帖子级**：`POST /v2/video/list/` 拉最近视频（最多 60 条），逐条写入 `posts` 表
+  （标题、描述、封面、发布时间、播放/点赞/评论/分享）。按 `account_id + external_id`
+  幂等 upsert，重复同步不会产生重复行。
+
+> ⚠️ TikTok 的 access_token 有效期仅 **24 小时**，refresh_token 约 365 天。手动贴的
+> token 第二天就失效。要长期自动跑，需保存 refresh_token 定期续期（可让我加一个
+> OAuth + 自动刷新的辅助函数）。竞品 TikTok 官方接口拿不到，仍需手动录入。
 
 ---
 

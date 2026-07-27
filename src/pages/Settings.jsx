@@ -23,7 +23,8 @@ export default function Settings() {
   const [tab, setTab] = useState('users')
   const [users, setUsers] = useState([])
   const [creds, setCreds] = useState({}) // id -> init_password（仅管理员可读）
-  const [showPwd, setShowPwd] = useState(false)
+  const [revealed, setRevealed] = useState({}) // id -> bool，点击成员展开显示密码
+  const toggleReveal = (id) => setRevealed((r) => ({ ...r, [id]: !r[id] }))
   const [modal, setModal] = useState(false)
   const [form, setForm] = useState({ name: '', email: '', role: 'operator' })
 
@@ -90,40 +91,42 @@ export default function Settings() {
                   <div className="text-base font-semibold text-slate-800">账号列表</div>
                   <div className="text-sm text-slate-400">所有用户由管理员创建，用户不可自行注册</div>
                 </div>
-                <div className="flex items-center gap-2">
-                  {isAdmin && (
-                    <Button onClick={() => setShowPwd((v) => !v)}>{showPwd ? <EyeOff size={16} /> : <Eye size={16} />} {showPwd ? '隐藏密码' : '显示密码'}</Button>
-                  )}
-                  <Button variant="primary" onClick={() => setModal(true)}><UserPlus size={16} /> 创建账号</Button>
-                </div>
+                <Button variant="primary" onClick={() => setModal(true)}><UserPlus size={16} /> 创建账号</Button>
               </div>
 
-              <div className="mt-4 overflow-x-auto">
-                {users.length === 0 ? (
-                  <div className="py-6 text-center text-sm text-slate-400">暂无账号</div>
-                ) : (
-                  <table className="w-full text-sm">
-                    <thead className="border-b border-slate-100 text-left text-xs text-slate-400">
-                      <tr><th className="px-3 py-2">姓名</th><th className="px-3 py-2">用户名</th><th className="px-3 py-2">角色</th>{isAdmin && <th className="px-3 py-2">密码</th>}</tr>
-                    </thead>
-                    <tbody>
-                      {users.map((u) => (
-                        <tr key={u.id} className="border-b border-slate-50">
-                          <td className="px-3 py-2.5 font-medium text-slate-800">{u.name}</td>
-                          <td className="px-3 py-2.5 text-slate-500">{usernameOf(u.email)}</td>
-                          <td className="px-3 py-2.5"><Badge color={roleMeta(u.role).color}>{roleMeta(u.role).label}</Badge></td>
-                          {isAdmin && (
-                            <td className="px-3 py-2.5 font-mono text-slate-600">
-                              {creds[u.id] ? (showPwd ? creds[u.id] : '••••••') : <span className="text-slate-300">—</span>}
-                            </td>
-                          )}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
+              <div className="mt-4 space-y-2">
+                {users.length === 0 && <div className="py-6 text-center text-sm text-slate-400">暂无账号</div>}
+                {users.map((u) => {
+                  const open = !!revealed[u.id]
+                  return (
+                    <div key={u.id} className="rounded-xl border border-slate-100">
+                      <button
+                        type="button"
+                        onClick={() => isAdmin && toggleReveal(u.id)}
+                        className={`flex w-full items-center gap-3 p-3 text-left ${isAdmin ? 'cursor-pointer hover:bg-slate-50' : 'cursor-default'}`}
+                      >
+                        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 font-semibold text-slate-600">{(u.name || u.email || '?')[0].toUpperCase()}</div>
+                        <div className="flex-1">
+                          <div className="text-sm font-medium text-slate-800">{u.name}</div>
+                          <div className="text-xs text-slate-400">用户名 {usernameOf(u.email)}</div>
+                        </div>
+                        <Badge color={roleMeta(u.role).color}>{roleMeta(u.role).label}</Badge>
+                        {isAdmin && <span className="text-slate-400">{open ? <EyeOff size={16} /> : <Eye size={16} />}</span>}
+                      </button>
+                      {isAdmin && open && (
+                        <div className="flex items-center justify-between border-t border-slate-100 px-3 py-2.5 text-sm">
+                          <span className="text-slate-500">账号密码</span>
+                          <span className="font-mono text-slate-800">
+                            <span className="mr-4">用户名：{usernameOf(u.email)}</span>
+                            密码：{creds[u.id] || <span className="text-slate-300">未记录</span>}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
-              {isAdmin && <p className="mt-3 text-xs text-slate-400">密码仅管理员可见（凭证表已按角色做行级安全，运营/设计师登录后看不到本页密码列）。</p>}
+              {isAdmin && <p className="mt-3 text-xs text-slate-400">点击成员即可展开查看账号密码（凭证按角色做了行级安全，运营/设计师登录后看不到密码）。</p>}
             </>
           )}
 
