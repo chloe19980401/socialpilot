@@ -53,6 +53,7 @@ export default function Content() {
   const [profiles, setProfiles] = useState([])
   const [brandTab, setBrandTab] = useState('all')
   const [platformTab, setPlatformTab] = useState('all')
+  const [operatorTab, setOperatorTab] = useState('all')
   const [metric, setMetric] = useState('count')
   const [range, setRange] = useState(30)
   const [loading, setLoading] = useState(true)
@@ -86,9 +87,21 @@ export default function Content() {
     const set = new Set(filtered.map((p) => (p.platform || '').toLowerCase()).filter(Boolean))
     return ['all', ...Array.from(set)]
   }, [filtered])
+  const listOperators = useMemo(() => {
+    const map = new Map()
+    filtered.forEach((p) => {
+      const key = p.operator_email || '__none__'
+      if (!map.has(key)) map.set(key, p.operator_name || (p.operator_email ? p.operator_email.split('@')[0] : '未分配'))
+    })
+    return [['all', '全部运营'], ...Array.from(map.entries())]
+  }, [filtered])
   const tablePosts = useMemo(
-    () => (platformTab === 'all' ? filtered : filtered.filter((p) => (p.platform || '').toLowerCase() === platformTab)),
-    [filtered, platformTab]
+    () => filtered.filter((p) => {
+      const pfOk = platformTab === 'all' || (p.platform || '').toLowerCase() === platformTab
+      const opOk = operatorTab === 'all' || (p.operator_email || '__none__') === operatorTab
+      return pfOk && opOk
+    }),
+    [filtered, platformTab, operatorTab]
   )
 
   const totals = useMemo(() => {
@@ -222,10 +235,19 @@ export default function Content() {
           <div className="font-semibold text-slate-800">帖子列表</div>
           <Button variant="primary" onClick={openNew}><Plus size={16} /> 新增帖子</Button>
         </div>
-        <div className="flex flex-wrap gap-2 border-t border-slate-100 px-5 py-3">
+        <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 px-5 py-3">
+          <span className="mr-1 text-xs text-slate-400">平台</span>
           {listPlatforms.map((p) => (
             <button key={p} onClick={() => setPlatformTab(p)} className={`rounded-lg px-3 py-1.5 text-xs ${platformTab === p ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
               {p === 'all' ? '全部平台' : platformMeta(p).label}
+            </button>
+          ))}
+        </div>
+        <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 px-5 py-3">
+          <span className="mr-1 text-xs text-slate-400">运营</span>
+          {listOperators.map(([key, label]) => (
+            <button key={key} onClick={() => setOperatorTab(key)} className={`rounded-lg px-3 py-1.5 text-xs ${operatorTab === key ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
+              {label}
             </button>
           ))}
         </div>
