@@ -45,7 +45,7 @@ const METRICS = [
   { key: 'engagement', label: '平均互动率', icon: <TrendingUp size={20} />, fmt: () => '0.00%' },
 ]
 const RANGES = [{ value: 7, label: '近7天' }, { value: 14, label: '近14天' }, { value: 30, label: '近30天' }]
-const emptyPost = { url: '', title: '', platform: 'instagram', brand_id: '', published_at: '', designer: '', thumbnail_url: '' }
+const emptyPost = { url: '', title: '', platform: 'instagram', brand_id: '', published_at: '', operator: '', designer: '', thumbnail_url: '' }
 
 export default function Content() {
   const [posts, setPosts] = useState([])
@@ -135,13 +135,13 @@ export default function Content() {
     } catch (e) { alert('同步失败：' + (e.message || e)) } finally { setSyncing(false) }
   }
 
-  function openNew() { setEditing(null); setForm({ ...emptyPost, brand_id: brands[0]?.id || '' }); setModal(true) }
+  function openNew() { setEditing(null); setForm({ ...emptyPost, brand_id: brands[0]?.id || '', operator: profile?.email || '' }); setModal(true) }
   function openEdit(p) {
     setEditing(p)
     setForm({
       url: p.url || '', title: p.title || '', platform: p.platform || 'instagram', brand_id: p.brand_id || '',
       published_at: p.published_at ? p.published_at.slice(0, 10) : '',
-      designer: p.designer_email || '', thumbnail_url: p.thumbnail_url || '',
+      operator: p.operator_email || '', designer: p.designer_email || '', thumbnail_url: p.thumbnail_url || '',
     })
     setModal(true)
   }
@@ -149,15 +149,16 @@ export default function Content() {
   async function savePost(e) {
     e.preventDefault()
     const de = profiles.find((x) => x.email === form.designer)
+    const op = profiles.find((x) => x.email === form.operator)
     const platform = detectPlatform(form.url) || form.platform
     const row = {
       url: form.url || null,
       external_id: parseExternalId(form.url, platform),
       title: form.title || null, platform, brand_id: form.brand_id || null,
       published_at: form.published_at || null,
-      // 运营默认记为当前登录账号；编辑时保留原运营
-      operator_email: editing ? editing.operator_email : (profile?.email || null),
-      operator_name: editing ? editing.operator_name : (profile?.name || null),
+      // 运营：新建默认当前登录账号；管理员可在编辑里改成任意成员（含给同步来的无运营帖子指派）
+      operator_email: form.operator || null,
+      operator_name: op?.name || (form.operator ? form.operator.split('@')[0] : null),
       designer_email: form.designer || null, designer_name: de?.name || null,
       thumbnail_url: form.thumbnail_url || null,
     }
@@ -337,6 +338,14 @@ export default function Content() {
             </select>
           </Field>
           <div className="col-span-2"><Field label="标题 / 文案（可选）"><input className={inputClass} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="留空则同步时自动回填" /></Field></div>
+          {profile?.role === 'admin' && (
+            <Field label="所属运营（管理员可指派）">
+              <select className={inputClass} value={form.operator} onChange={(e) => setForm({ ...form, operator: e.target.value })}>
+                <option value="">未分配</option>
+                {profiles.map((p) => <option key={p.id} value={p.email}>{p.name || p.email}</option>)}
+              </select>
+            </Field>
+          )}
           <Field label="设计师（可选）">
             <select className={inputClass} value={form.designer} onChange={(e) => setForm({ ...form, designer: e.target.value })}>
               <option value="">未分配</option>
@@ -344,7 +353,7 @@ export default function Content() {
             </select>
           </Field>
           <Field label="发布日期（可选）"><input type="date" className={inputClass} value={form.published_at} onChange={(e) => setForm({ ...form, published_at: e.target.value })} /></Field>
-          <div className="col-span-2 text-xs text-slate-400">运营默认记为当前登录账号（{profile?.name || profile?.email || '本人'}）。点赞 / 播放 / 评论会在同步时按链接自动更新，无需手动填写。</div>
+          <div className="col-span-2 text-xs text-slate-400">{profile?.role === 'admin' ? '管理员可把帖子指派给任意运营（同步来的帖子默认无运营，可在此指派，指派后即计入该运营的绩效）。' : `运营默认记为当前登录账号（${profile?.name || profile?.email || '本人'}）。`}点赞 / 播放 / 评论会在同步时自动更新。</div>
         </form>
       </Modal>
     </div>
