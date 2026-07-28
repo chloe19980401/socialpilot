@@ -6,6 +6,7 @@ import Dashboard from './pages/Dashboard'
 import Brands from './pages/Brands'
 import Content from './pages/Content'
 import Calendar from './pages/Calendar'
+import Schedule from './pages/Schedule'
 import Kol from './pages/Kol'
 import Ecommerce from './pages/Ecommerce'
 import Competitors from './pages/Competitors'
@@ -39,6 +40,7 @@ export default function App() {
         <Route path="/brands" element={<Brands />} />
         <Route path="/content" element={<Content />} />
         <Route path="/calendar" element={<Calendar />} />
+        <Route path="/schedule" element={<Schedule />} />
         <Route path="/logs" element={<Kol />} />
         <Route path="/trends" element={<Ecommerce />} />
         <Route path="/competitors" element={<Competitors />} />

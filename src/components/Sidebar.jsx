@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import {
-  LayoutGrid, Globe, FileText, Calendar, Star, ShoppingCart,
+  LayoutGrid, Globe, FileText, Calendar, CalendarClock, Star, ShoppingCart,
   BarChart3, Award, Settings as SettingsIcon, ChevronDown, ChevronsUpDown, LogOut,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
@@ -14,6 +14,7 @@ const NAV = [
   { to: '/brands', label: '品牌管理', Icon: Globe },
   { to: '/content', label: '内容中心', Icon: FileText },
   { to: '/calendar', label: '日历', Icon: Calendar },
+  { to: '/schedule', label: '发布排期', Icon: CalendarClock },
   { to: '/logs', label: 'KOL 红人管理', Icon: Star },
   { to: '/trends', label: '自建站看板', Icon: ShoppingCart },
   { to: '/competitors', label: '竞品分析', Icon: BarChart3 },
