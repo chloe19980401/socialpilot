@@ -24,6 +24,18 @@ function detectPlatform(url) {
   if (u.includes('facebook.com') || u.includes('fb.watch')) return 'facebook'
   return ''
 }
+// 把链接标准化成去重用的 key（YouTube 的 id 在 ?v= 里，其它平台去掉参数/结尾斜杠即可）
+function normUrl(u) {
+  if (!u) return ''
+  try {
+    const x = new URL(u)
+    const host = x.hostname.replace(/^www\./, '')
+    const path = x.pathname.replace(/\/+$/, '')
+    if (host.includes('youtube.com')) return 'yt:' + (x.searchParams.get('v') || path)
+    if (host.includes('youtu.be')) return 'yt:' + path.replace(/^\//, '')
+    return (host + path).toLowerCase()
+  } catch { return (u || '').trim().toLowerCase() }
+}
 // 从链接解析帖子 ID（供同步按 external_id 匹配、自动回填互动数据）
 function parseExternalId(url, platform) {
   try {
@@ -175,8 +187,19 @@ export default function Content() {
       designer_email: form.designer || null, designer_name: de?.name || null,
       thumbnail_url: form.thumbnail_url || null,
     }
-    if (editing) await supabase.from('posts').update(row).eq('id', editing.id)
-    else await supabase.from('posts').insert(row)
+    if (editing) {
+      await supabase.from('posts').update(row).eq('id', editing.id)
+    } else {
+      // 防重复：同一条链接（标准化后）已存在就更新那条，而不是新增
+      const nu = normUrl(form.url)
+      const dup = nu ? posts.find((p) => normUrl(p.url) === nu) : null
+      if (dup) {
+        await supabase.from('posts').update(row).eq('id', dup.id)
+        alert('该链接的帖子已存在，已更新为你填写的信息（未新增重复帖子）。')
+      } else {
+        await supabase.from('posts').insert(row)
+      }
+    }
     setModal(false)
     load()
   }
