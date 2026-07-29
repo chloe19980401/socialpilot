@@ -10,7 +10,8 @@ create table if not exists public.content_plans (
   -- 归属
   brand_id    uuid references public.brands(id)   on delete set null,
   account_id  uuid references public.accounts(id) on delete set null,
-  platform    text,                              -- instagram | youtube | facebook | tiktok | twitter | linkedin
+  platforms   text[] default '{}',               -- 可多选：instagram | youtube | facebook | tiktok | twitter | linkedin
+  platform    text,                              -- 兼容旧字段（存首个平台）
 
   -- 内容主体
   title         text,

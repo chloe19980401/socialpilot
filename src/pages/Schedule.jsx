@@ -37,8 +37,10 @@ function weekDays(cursor) {
   })
 }
 const sameDay = (a, b) => new Date(a).toDateString() === new Date(b).toDateString()
+// 平台可多选：优先用 platforms 数组，兼容老数据的单个 platform 字段
+const planPlatforms = (p) => (p.platforms?.length ? p.platforms : (p.platform ? [p.platform] : []))
 const emptyForm = () => ({
-  id: null, brand_id: '', account_id: '', platform: '', title: '', content: '',
+  id: null, brand_id: '', account_id: '', platforms: [], title: '', content: '',
   thumbnail_url: '', asset_url: '', content_type: 'image', tags: '', notes: '',
   assignee_email: '', scheduled_at: '', status: 'draft',
 })
@@ -92,7 +94,7 @@ export default function Schedule() {
 
   const filtered = useMemo(() => plans.filter((p) => (
     (fBrand === 'all' || p.brand_id === fBrand) &&
-    (fPlatform === 'all' || p.platform === fPlatform) &&
+    (fPlatform === 'all' || planPlatforms(p).includes(fPlatform)) &&
     (fAssignee === 'all' || p.assignee_email === fAssignee) &&
     (fStatus === 'all' || p.status === fStatus)
   )), [plans, fBrand, fPlatform, fAssignee, fStatus])
@@ -105,13 +107,14 @@ export default function Schedule() {
       f.scheduled_at = toLocalInput(d)
     }
     if (fBrand !== 'all') f.brand_id = fBrand
+    if (fPlatform !== 'all') f.platforms = [fPlatform]
     if (profile?.email) f.assignee_email = profile.email
     setForm(f); setModalOpen(true)
   }
   function openEdit(p) {
     setForm({
       id: p.id, brand_id: p.brand_id || '', account_id: p.account_id || '',
-      platform: p.platform || '', title: p.title || '', content: p.content || '',
+      platforms: planPlatforms(p), title: p.title || '', content: p.content || '',
       thumbnail_url: p.thumbnail_url || '', asset_url: p.asset_url || '',
       content_type: p.content_type || 'image', tags: (p.tags || []).join(', '),
       notes: p.notes || '', assignee_email: p.assignee_email || '',
@@ -128,7 +131,8 @@ export default function Schedule() {
     const payload = {
       brand_id: form.brand_id || null,
       account_id: form.account_id || null,
-      platform: form.platform || null,
+      platforms: form.platforms || [],
+      platform: form.platforms?.[0] || null, // 兼容旧字段/单平台展示
       title: form.title.trim(),
       content: form.content || null,
       thumbnail_url: form.thumbnail_url || null,
@@ -179,15 +183,18 @@ export default function Schedule() {
 
   // 标记已发布：写一条 posts 记录并回填 post_id，融入内容中心/日历
   async function markPublished(p) {
-    if (!confirm(`把「${p.title || '未命名'}」标记为已发布？将同时写入内容中心。`)) return
+    const plats = planPlatforms(p)
+    const n = plats.length || 1
+    if (!confirm(`把「${p.title || '未命名'}」标记为已发布？将向内容中心写入 ${n} 条发布记录${n > 1 ? '（每个平台各一条）' : ''}。`)) return
     const publishedAt = p.scheduled_at || new Date().toISOString()
-    const { data: post } = await supabase.from('posts').insert({
-      brand_id: p.brand_id, account_id: p.account_id, platform: p.platform,
+    const rows = (plats.length ? plats : [null]).map((plat) => ({
+      brand_id: p.brand_id, account_id: p.account_id, platform: plat,
       title: p.title, content: p.content, thumbnail_url: p.thumbnail_url,
       operator_email: p.assignee_email, operator_name: p.assignee_name,
       published_at: publishedAt, status: 'published',
-    }).select('id').maybeSingle()
-    patch(p.id, { status: 'published', post_id: post?.id || null })
+    }))
+    const { data: posts } = await supabase.from('posts').insert(rows).select('id')
+    patch(p.id, { status: 'published', post_id: posts?.[0]?.id || null })
   }
 
   // 拖拽改期（月/周视图）
@@ -306,12 +313,24 @@ export default function Schedule() {
               {brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
             </select>
           </Field>
-          <Field label="平台">
-            <select className={inputClass} value={form.platform} onChange={(e) => setForm({ ...form, platform: e.target.value })}>
-              <option value="">未指定</option>
-              {Object.entries(PLATFORMS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-            </select>
-          </Field>
+          <div className="col-span-2">
+            <Field label="平台（可多选）">
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(PLATFORMS).map(([k, v]) => {
+                  const on = form.platforms.includes(k)
+                  const Icon = v.Icon
+                  return (
+                    <button key={k} type="button"
+                      onClick={() => setForm({ ...form, platforms: on ? form.platforms.filter((x) => x !== k) : [...form.platforms, k] })}
+                      className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-sm transition ${on ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+                      <Icon size={14} style={{ color: on ? v.color : undefined }} />{v.label}
+                      {on && <Check size={13} />}
+                    </button>
+                  )
+                })}
+              </div>
+            </Field>
+          </div>
           <Field label="账号">
             <select className={inputClass} value={form.account_id} onChange={(e) => setForm({ ...form, account_id: e.target.value })}>
               <option value="">未指定</option>
@@ -392,11 +411,11 @@ function PlanActions({ p, isAdmin, openEdit, remove, submitReview, approve, reje
 
 function PlanMeta({ p, brandMap }) {
   const brand = brandMap[p.brand_id]
-  const pm = p.platform ? platformMeta(p.platform) : null
+  const plats = planPlatforms(p)
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-400">
       {brand && <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full" style={{ background: brand.color || '#3b6ef6' }} />{brand.name}</span>}
-      {pm && <span className="inline-flex items-center gap-1" style={{ color: pm.color }}><pm.Icon size={12} />{pm.label}</span>}
+      {plats.map((k) => { const m = platformMeta(k); return <span key={k} className="inline-flex items-center gap-1" style={{ color: m.color }} title={m.label}><m.Icon size={12} /></span> })}
       {p.content_type && <span>{contentTypeLabel(p.content_type)}</span>}
       {p.assignee_name && <span className="inline-flex items-center gap-1"><User size={11} />{p.assignee_name}</span>}
     </div>
@@ -602,7 +621,7 @@ function ListView({ plans, brandMap, ...actions }) {
             {sorted.map((p) => {
               const meta = statusMeta(p.status)
               const brand = brandMap[p.brand_id]
-              const pm = p.platform ? platformMeta(p.platform) : null
+              const plats = planPlatforms(p)
               const overdue = p.scheduled_at && relativeDay(p.scheduled_at).startsWith('逾期') && !['published'].includes(p.status)
               return (
                 <tr key={p.id} className="border-b border-slate-50 hover:bg-slate-50/60">
@@ -613,7 +632,7 @@ function ListView({ plans, brandMap, ...actions }) {
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2 text-xs text-slate-500">
                       {brand && <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full" style={{ background: brand.color || '#3b6ef6' }} />{brand.name}</span>}
-                      {pm && <span className="inline-flex items-center gap-1" style={{ color: pm.color }}><pm.Icon size={12} />{pm.label}</span>}
+                      {plats.map((k) => { const m = platformMeta(k); return <span key={k} className="inline-flex items-center gap-1" style={{ color: m.color }} title={m.label}><m.Icon size={12} />{m.label}</span> })}
                     </div>
                   </td>
                   <td className="px-4 py-3 text-slate-500">{contentTypeLabel(p.content_type)}</td>
