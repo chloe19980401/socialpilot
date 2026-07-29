@@ -622,6 +622,17 @@ function BoardCalendar({ plans, cursor, setCursor, onEdit, brandMap, accountMap 
   const cells = monthMatrix(y, m); const today = new Date()
   const board = plans.filter((p) => (p.status === 'approved' || p.status === 'published') && p.scheduled_at)
   const colorOf = (p) => (isOverdue(p) ? '#ef4444' : p.status === 'published' ? '#22c55e' : '#3b6ef6')
+  // 打开日历时，若当前月份没有排期，自动跳到最近有排期的那个月
+  useEffect(() => {
+    if (!board.length) return
+    const hasThisMonth = board.some((p) => { const d = new Date(p.scheduled_at); return d.getFullYear() === y && d.getMonth() === m })
+    if (hasThisMonth) return
+    const now = Date.now()
+    const upcoming = board.map((p) => new Date(p.scheduled_at)).filter((d) => d.getTime() >= now).sort((a, b) => a - b)
+    const target = upcoming[0] || board.map((p) => new Date(p.scheduled_at)).sort((a, b) => b - a)[0]
+    if (target) setCursor(new Date(target.getFullYear(), target.getMonth(), 1))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   return (
     <Card className="p-0">
       <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 p-3">
