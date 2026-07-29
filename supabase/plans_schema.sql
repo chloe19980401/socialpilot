@@ -7,19 +7,20 @@
 create table if not exists public.content_plans (
   id uuid primary key default gen_random_uuid(),
 
-  -- 归属
+  -- 归属：选账号即选平台（平台从账号推导）
   brand_id    uuid references public.brands(id)   on delete set null,
-  account_id  uuid references public.accounts(id) on delete set null,
-  platforms   text[] default '{}',               -- 可多选：instagram | youtube | facebook | tiktok | twitter | linkedin
-  platform    text,                              -- 兼容旧字段（存首个平台）
+  account_ids uuid[] default '{}',               -- 可多选账号（发布目标）
+  account_id  uuid references public.accounts(id) on delete set null, -- 兼容旧字段（首个账号）
+  platforms   text[] default '{}',               -- 由所选账号推导的平台集合
+  platform    text,                              -- 兼容旧字段（首个平台）
 
   -- 内容主体
   title         text,
   content       text,                            -- 文案
-  thumbnail_url text,                            -- 配图链接
+  thumbnail_url text,                            -- 配图（上传到 storage 桶 plan-images 后的公开链接）
   asset_url     text,                            -- 素材/网盘链接
   content_type  text,                            -- image | video | reels | story | live | article
-  tags          text[] default '{}',             -- 标签
+  topic         text,                            -- 帖子主题类型（下拉可新增）
   notes         text,                            -- 备注
 
   -- 负责与排期

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, useCallback } from 'react'
 import {
   CalendarClock, Plus, RefreshCw, ChevronLeft, ChevronRight, LayoutList,
   Columns3, CalendarDays, CalendarRange, Check, X, Send, Rocket, Pencil, Trash2,
-  Clock, User, Tag as TagIcon, AlertTriangle,
+  Clock, User, Tag as TagIcon, AlertTriangle, Upload, Loader2,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
@@ -37,11 +37,20 @@ function weekDays(cursor) {
   })
 }
 const sameDay = (a, b) => new Date(a).toDateString() === new Date(b).toDateString()
-// 平台可多选：优先用 platforms 数组，兼容老数据的单个 platform 字段
-const planPlatforms = (p) => (p.platforms?.length ? p.platforms : (p.platform ? [p.platform] : []))
+// 账号可多选：优先用 account_ids 数组，兼容老数据的单个 account_id
+const planAccountIds = (p) => (p.account_ids?.length ? p.account_ids : (p.account_id ? [p.account_id] : []))
+// 平台从所选账号自动推导；无账号时兼容老的 platforms/platform 字段
+const planPlatforms = (p, accountMap) => {
+  const ids = planAccountIds(p)
+  if (ids.length && accountMap) {
+    const set = [...new Set(ids.map((id) => accountMap[id]?.platform).filter(Boolean))]
+    if (set.length) return set
+  }
+  return p.platforms?.length ? p.platforms : (p.platform ? [p.platform] : [])
+}
 const emptyForm = () => ({
-  id: null, brand_id: '', account_id: '', platforms: [], title: '', content: '',
-  thumbnail_url: '', asset_url: '', content_type: 'image', tags: '', notes: '',
+  id: null, brand_id: '', account_ids: [], title: '', content: '',
+  thumbnail_url: '', asset_url: '', content_type: 'image', topic: '', notes: '',
   assignee_email: '', scheduled_at: '', status: 'draft',
 })
 
@@ -69,6 +78,7 @@ export default function Schedule() {
   const [modalOpen, setModalOpen] = useState(false)
   const [form, setForm] = useState(emptyForm())
   const [saving, setSaving] = useState(false)
+  const [uploading, setUploading] = useState(false)
 
   // 审批驳回
   const [rejectFor, setRejectFor] = useState(null)
@@ -91,13 +101,30 @@ export default function Schedule() {
   useEffect(() => { load() }, [load])
 
   const brandMap = useMemo(() => Object.fromEntries(brands.map((b) => [b.id, b])), [brands])
+  const accountMap = useMemo(() => Object.fromEntries(accounts.map((a) => [a.id, a])), [accounts])
+  // 帖子主题类型下拉选项：汇总所有排期里已有的主题（支持新增：直接输入新值即可）
+  const topicOptions = useMemo(() => [...new Set(plans.map((p) => p.topic).filter(Boolean))].sort(), [plans])
+
+  // 上传配图到 Supabase Storage，得到公开链接
+  async function uploadImage(file) {
+    if (!file) return
+    if (!file.type.startsWith('image/')) { alert('请选择图片文件'); return }
+    setUploading(true)
+    const ext = (file.name.split('.').pop() || 'png').toLowerCase()
+    const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+    const { error } = await supabase.storage.from('plan-images').upload(path, file, { cacheControl: '3600', upsert: false })
+    if (error) { alert('上传失败：' + error.message); setUploading(false); return }
+    const { data } = supabase.storage.from('plan-images').getPublicUrl(path)
+    setForm((f) => ({ ...f, thumbnail_url: data.publicUrl }))
+    setUploading(false)
+  }
 
   const filtered = useMemo(() => plans.filter((p) => (
     (fBrand === 'all' || p.brand_id === fBrand) &&
-    (fPlatform === 'all' || planPlatforms(p).includes(fPlatform)) &&
+    (fPlatform === 'all' || planPlatforms(p, accountMap).includes(fPlatform)) &&
     (fAssignee === 'all' || p.assignee_email === fAssignee) &&
     (fStatus === 'all' || p.status === fStatus)
-  )), [plans, fBrand, fPlatform, fAssignee, fStatus])
+  )), [plans, fBrand, fPlatform, fAssignee, fStatus, accountMap])
 
   /* ---------- 打开表单 ---------- */
   function openNew(prefillDate) {
@@ -107,16 +134,15 @@ export default function Schedule() {
       f.scheduled_at = toLocalInput(d)
     }
     if (fBrand !== 'all') f.brand_id = fBrand
-    if (fPlatform !== 'all') f.platforms = [fPlatform]
     if (profile?.email) f.assignee_email = profile.email
     setForm(f); setModalOpen(true)
   }
   function openEdit(p) {
     setForm({
-      id: p.id, brand_id: p.brand_id || '', account_id: p.account_id || '',
-      platforms: planPlatforms(p), title: p.title || '', content: p.content || '',
+      id: p.id, brand_id: p.brand_id || '', account_ids: planAccountIds(p),
+      title: p.title || '', content: p.content || '',
       thumbnail_url: p.thumbnail_url || '', asset_url: p.asset_url || '',
-      content_type: p.content_type || 'image', tags: (p.tags || []).join(', '),
+      content_type: p.content_type || 'image', topic: p.topic || '',
       notes: p.notes || '', assignee_email: p.assignee_email || '',
       scheduled_at: toLocalInput(p.scheduled_at), status: p.status || 'draft',
     })
@@ -128,17 +154,20 @@ export default function Schedule() {
     if (!form.title.trim()) { alert('请填写标题'); return }
     setSaving(true)
     const person = people.find((x) => x.email === form.assignee_email)
+    const selAccounts = form.account_ids.map((id) => accountMap[id]).filter(Boolean)
+    const derivedPlatforms = [...new Set(selAccounts.map((a) => a.platform).filter(Boolean))]
     const payload = {
       brand_id: form.brand_id || null,
-      account_id: form.account_id || null,
-      platforms: form.platforms || [],
-      platform: form.platforms?.[0] || null, // 兼容旧字段/单平台展示
+      account_ids: form.account_ids || [],
+      account_id: form.account_ids?.[0] || null,        // 兼容旧字段
+      platforms: derivedPlatforms,                       // 由所选账号推导
+      platform: derivedPlatforms[0] || null,             // 兼容旧字段
       title: form.title.trim(),
       content: form.content || null,
       thumbnail_url: form.thumbnail_url || null,
       asset_url: form.asset_url || null,
       content_type: form.content_type || null,
-      tags: form.tags ? form.tags.split(/[,，]/).map((s) => s.trim()).filter(Boolean) : [],
+      topic: form.topic?.trim() || null,
       notes: form.notes || null,
       assignee_email: form.assignee_email || null,
       assignee_name: person?.name || (form.assignee_email ? form.assignee_email.split('@')[0] : null),
@@ -181,14 +210,14 @@ export default function Schedule() {
   }
   function reopen(p) { patch(p.id, { status: 'draft', review_note: null }) }
 
-  // 标记已发布：写一条 posts 记录并回填 post_id，融入内容中心/日历
+  // 标记已发布：按所选账号各写一条 posts 记录，融入内容中心/日历
   async function markPublished(p) {
-    const plats = planPlatforms(p)
-    const n = plats.length || 1
-    if (!confirm(`把「${p.title || '未命名'}」标记为已发布？将向内容中心写入 ${n} 条发布记录${n > 1 ? '（每个平台各一条）' : ''}。`)) return
+    const accs = planAccountIds(p).map((id) => accountMap[id]).filter(Boolean)
+    const n = accs.length || 1
+    if (!confirm(`把「${p.title || '未命名'}」标记为已发布？将向内容中心写入 ${n} 条发布记录${n > 1 ? '（每个账号各一条）' : ''}。`)) return
     const publishedAt = p.scheduled_at || new Date().toISOString()
-    const rows = (plats.length ? plats : [null]).map((plat) => ({
-      brand_id: p.brand_id, account_id: p.account_id, platform: plat,
+    const rows = (accs.length ? accs : [null]).map((a) => ({
+      brand_id: p.brand_id, account_id: a?.id || null, platform: a?.platform || p.platform || null,
       title: p.title, content: p.content, thumbnail_url: p.thumbnail_url,
       operator_email: p.assignee_email, operator_name: p.assignee_name,
       published_at: publishedAt, status: 'published',
@@ -217,7 +246,7 @@ export default function Schedule() {
 
   const accountsForBrand = accounts.filter((a) => !form.brand_id || a.brand_id === form.brand_id)
 
-  const shared = { brandMap, openEdit, remove, submitReview, approve, reject: (p) => setRejectFor(p), reopen, markPublished, reopen2: reopen, isAdmin, profile }
+  const shared = { brandMap, accountMap, openEdit, remove, submitReview, approve, reject: (p) => setRejectFor(p), reopen, markPublished, reopen2: reopen, isAdmin, profile }
 
   return (
     <div>
@@ -308,35 +337,35 @@ export default function Schedule() {
             <Field label="标题 *"><input className={inputClass} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="这条内容的主题" /></Field>
           </div>
           <Field label="品牌">
-            <select className={inputClass} value={form.brand_id} onChange={(e) => setForm({ ...form, brand_id: e.target.value, account_id: '' })}>
+            <select className={inputClass} value={form.brand_id} onChange={(e) => setForm({ ...form, brand_id: e.target.value, account_ids: [] })}>
               <option value="">未指定</option>
               {brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
             </select>
           </Field>
           <div className="col-span-2">
-            <Field label="平台（可多选）">
-              <div className="flex flex-wrap gap-2">
-                {Object.entries(PLATFORMS).map(([k, v]) => {
-                  const on = form.platforms.includes(k)
-                  const Icon = v.Icon
-                  return (
-                    <button key={k} type="button"
-                      onClick={() => setForm({ ...form, platforms: on ? form.platforms.filter((x) => x !== k) : [...form.platforms, k] })}
-                      className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-sm transition ${on ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
-                      <Icon size={14} style={{ color: on ? v.color : undefined }} />{v.label}
-                      {on && <Check size={13} />}
-                    </button>
-                  )
-                })}
-              </div>
+            <Field label="发布账号（可多选，选哪些账号就发到对应平台）">
+              {accountsForBrand.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate-200 px-3 py-2 text-sm text-slate-400">
+                  {form.brand_id ? '该品牌下暂无账号，去「品牌管理」添加' : '该品牌下暂无账号'}
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {accountsForBrand.map((a) => {
+                    const on = form.account_ids.includes(a.id)
+                    const m = platformMeta(a.platform)
+                    return (
+                      <button key={a.id} type="button"
+                        onClick={() => setForm({ ...form, account_ids: on ? form.account_ids.filter((x) => x !== a.id) : [...form.account_ids, a.id] })}
+                        className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-sm transition ${on ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+                        <m.Icon size={14} style={{ color: on ? m.color : undefined }} />{a.display_name || a.handle}
+                        {on && <Check size={13} />}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
             </Field>
           </div>
-          <Field label="账号">
-            <select className={inputClass} value={form.account_id} onChange={(e) => setForm({ ...form, account_id: e.target.value })}>
-              <option value="">未指定</option>
-              {accountsForBrand.map((a) => <option key={a.id} value={a.id}>{a.display_name || a.handle}</option>)}
-            </select>
-          </Field>
           <Field label="内容类型">
             <select className={inputClass} value={form.content_type} onChange={(e) => setForm({ ...form, content_type: e.target.value })}>
               {CONTENT_TYPE_LIST.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
@@ -352,10 +381,28 @@ export default function Schedule() {
           <div className="col-span-2">
             <Field label="文案"><textarea rows={3} className={inputClass} value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} placeholder="正文文案…" /></Field>
           </div>
-          <Field label="配图链接"><input className={inputClass} value={form.thumbnail_url} onChange={(e) => setForm({ ...form, thumbnail_url: e.target.value })} placeholder="https://…" /></Field>
+          <Field label="配图">
+            {form.thumbnail_url ? (
+              <div className="flex items-center gap-3">
+                <img src={form.thumbnail_url} alt="配图" className="h-16 w-16 rounded-lg border border-slate-200 object-cover" />
+                <button type="button" onClick={() => setForm({ ...form, thumbnail_url: '' })} className="text-xs text-red-600 hover:underline">移除</button>
+              </div>
+            ) : (
+              <label className={`flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed px-3 py-2.5 text-sm ${uploading ? 'border-brand-300 text-brand-500' : 'border-slate-300 text-slate-500 hover:bg-slate-50'}`}>
+                {uploading ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
+                {uploading ? '上传中…' : '点击上传图片'}
+                <input type="file" accept="image/*" className="hidden" disabled={uploading} onChange={(e) => { uploadImage(e.target.files?.[0]); e.target.value = '' }} />
+              </label>
+            )}
+          </Field>
           <Field label="素材/网盘链接"><input className={inputClass} value={form.asset_url} onChange={(e) => setForm({ ...form, asset_url: e.target.value })} placeholder="https://…" /></Field>
           <div className="col-span-2">
-            <Field label="标签（逗号分隔）"><input className={inputClass} value={form.tags} onChange={(e) => setForm({ ...form, tags: e.target.value })} placeholder="如：新品, 促销, 节日" /></Field>
+            <Field label="帖子主题类型（可下拉选择或直接输入新主题）">
+              <input className={inputClass} list="topic-options" value={form.topic} onChange={(e) => setForm({ ...form, topic: e.target.value })} placeholder="如：新品发布、促销活动、节日营销…" />
+              <datalist id="topic-options">
+                {topicOptions.map((t) => <option key={t} value={t} />)}
+              </datalist>
+            </Field>
           </div>
           <div className="col-span-2">
             <Field label="备注"><textarea rows={2} className={inputClass} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></Field>
@@ -409,13 +456,13 @@ function PlanActions({ p, isAdmin, openEdit, remove, submitReview, approve, reje
   )
 }
 
-function PlanMeta({ p, brandMap }) {
+function PlanMeta({ p, brandMap, accountMap }) {
   const brand = brandMap[p.brand_id]
-  const plats = planPlatforms(p)
+  const accs = planAccountIds(p).map((id) => accountMap?.[id]).filter(Boolean)
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-400">
       {brand && <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full" style={{ background: brand.color || '#3b6ef6' }} />{brand.name}</span>}
-      {plats.map((k) => { const m = platformMeta(k); return <span key={k} className="inline-flex items-center gap-1" style={{ color: m.color }} title={m.label}><m.Icon size={12} /></span> })}
+      {accs.map((a) => { const m = platformMeta(a.platform); return <span key={a.id} className="inline-flex items-center gap-1" style={{ color: m.color }} title={m.label}><m.Icon size={12} />{a.display_name || a.handle}</span> })}
       {p.content_type && <span>{contentTypeLabel(p.content_type)}</span>}
       {p.assignee_name && <span className="inline-flex items-center gap-1"><User size={11} />{p.assignee_name}</span>}
     </div>
@@ -423,7 +470,7 @@ function PlanMeta({ p, brandMap }) {
 }
 
 /* ---------------- 看板视图 ---------------- */
-function KanbanView({ plans, onMove, brandMap, ...actions }) {
+function KanbanView({ plans, onMove, brandMap, accountMap, ...actions }) {
   const [dragId, setDragId] = useState(null)
   return (
     <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -451,10 +498,10 @@ function KanbanView({ plans, onMove, brandMap, ...actions }) {
                       <span className="text-slate-300">·</span><span className={relativeDay(p.scheduled_at).startsWith('逾期') && p.status !== 'published' ? 'text-red-500' : 'text-slate-400'}>{relativeDay(p.scheduled_at)}</span>
                     </div>
                   )}
-                  <PlanMeta p={p} brandMap={brandMap} />
-                  {p.tags?.length > 0 && (
-                    <div className="mt-1.5 flex flex-wrap gap-1">
-                      {p.tags.map((t) => <span key={t} className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500">{t}</span>)}
+                  <PlanMeta p={p} brandMap={brandMap} accountMap={accountMap} />
+                  {p.topic && (
+                    <div className="mt-1.5">
+                      <span className="inline-flex items-center gap-1 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500"><TagIcon size={10} />{p.topic}</span>
                     </div>
                   )}
                   {p.status === 'rejected' && p.review_note && (
@@ -596,7 +643,7 @@ function WeekView({ plans, cursor, setCursor, onReschedule, onAdd, onEdit, brand
 }
 
 /* ---------------- 列表视图 ---------------- */
-function ListView({ plans, brandMap, ...actions }) {
+function ListView({ plans, brandMap, accountMap, ...actions }) {
   const sorted = [...plans].sort((a, b) => {
     const ta = a.scheduled_at ? new Date(a.scheduled_at) : Infinity
     const tb = b.scheduled_at ? new Date(b.scheduled_at) : Infinity
@@ -609,7 +656,7 @@ function ListView({ plans, brandMap, ...actions }) {
           <thead>
             <tr className="border-b border-slate-100 text-left text-xs text-slate-400">
               <th className="px-4 py-3 font-medium">标题</th>
-              <th className="px-4 py-3 font-medium">品牌/平台</th>
+              <th className="px-4 py-3 font-medium">品牌/账号</th>
               <th className="px-4 py-3 font-medium">类型</th>
               <th className="px-4 py-3 font-medium">负责运营</th>
               <th className="px-4 py-3 font-medium">计划时间</th>
@@ -621,18 +668,18 @@ function ListView({ plans, brandMap, ...actions }) {
             {sorted.map((p) => {
               const meta = statusMeta(p.status)
               const brand = brandMap[p.brand_id]
-              const plats = planPlatforms(p)
+              const accs = planAccountIds(p).map((id) => accountMap?.[id]).filter(Boolean)
               const overdue = p.scheduled_at && relativeDay(p.scheduled_at).startsWith('逾期') && !['published'].includes(p.status)
               return (
                 <tr key={p.id} className="border-b border-slate-50 hover:bg-slate-50/60">
                   <td className="px-4 py-3">
                     <div className="font-medium text-slate-800">{p.title || '未命名'}</div>
-                    {p.tags?.length > 0 && <div className="mt-0.5 flex flex-wrap gap-1">{p.tags.map((t) => <span key={t} className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500">{t}</span>)}</div>}
+                    {p.topic && <div className="mt-0.5"><span className="inline-flex items-center gap-1 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500"><TagIcon size={10} />{p.topic}</span></div>}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2 text-xs text-slate-500">
                       {brand && <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full" style={{ background: brand.color || '#3b6ef6' }} />{brand.name}</span>}
-                      {plats.map((k) => { const m = platformMeta(k); return <span key={k} className="inline-flex items-center gap-1" style={{ color: m.color }} title={m.label}><m.Icon size={12} />{m.label}</span> })}
+                      {accs.map((a) => { const m = platformMeta(a.platform); return <span key={a.id} className="inline-flex items-center gap-1" style={{ color: m.color }} title={m.label}><m.Icon size={12} />{a.display_name || a.handle}</span> })}
                     </div>
                   </td>
                   <td className="px-4 py-3 text-slate-500">{contentTypeLabel(p.content_type)}</td>
