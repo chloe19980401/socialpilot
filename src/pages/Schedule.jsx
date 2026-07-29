@@ -79,6 +79,7 @@ export default function Schedule() {
   const [form, setForm] = useState(emptyForm())
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [extraTopics, setExtraTopics] = useState([]) // 本次会话里新增、但还没保存到任何排期的主题
 
   // 审批驳回
   const [rejectFor, setRejectFor] = useState(null)
@@ -103,7 +104,22 @@ export default function Schedule() {
   const brandMap = useMemo(() => Object.fromEntries(brands.map((b) => [b.id, b])), [brands])
   const accountMap = useMemo(() => Object.fromEntries(accounts.map((a) => [a.id, a])), [accounts])
   // 帖子主题类型下拉选项：汇总所有排期里已有的主题（支持新增：直接输入新值即可）
-  const topicOptions = useMemo(() => [...new Set(plans.map((p) => p.topic).filter(Boolean))].sort(), [plans])
+  const topicOptions = useMemo(
+    () => [...new Set([...plans.map((p) => p.topic), ...extraTopics].filter(Boolean))].sort(),
+    [plans, extraTopics]
+  )
+
+  // 下拉选择主题；选「新增」时弹出输入新主题
+  function handleTopicChange(v) {
+    if (v === '__add__') {
+      const name = (window.prompt('新增帖子主题类型：') || '').trim()
+      if (!name) return
+      if (!topicOptions.includes(name)) setExtraTopics((prev) => [...prev, name])
+      setForm((f) => ({ ...f, topic: name }))
+      return
+    }
+    setForm((f) => ({ ...f, topic: v }))
+  }
 
   // 上传配图到 Supabase Storage，得到公开链接
   async function uploadImage(file) {
@@ -397,11 +413,12 @@ export default function Schedule() {
           </Field>
           <Field label="素材/网盘链接"><input className={inputClass} value={form.asset_url} onChange={(e) => setForm({ ...form, asset_url: e.target.value })} placeholder="https://…" /></Field>
           <div className="col-span-2">
-            <Field label="帖子主题类型（可下拉选择或直接输入新主题）">
-              <input className={inputClass} list="topic-options" value={form.topic} onChange={(e) => setForm({ ...form, topic: e.target.value })} placeholder="如：新品发布、促销活动、节日营销…" />
-              <datalist id="topic-options">
-                {topicOptions.map((t) => <option key={t} value={t} />)}
-              </datalist>
+            <Field label="帖子主题类型">
+              <select className={inputClass} value={form.topic} onChange={(e) => handleTopicChange(e.target.value)}>
+                <option value="">未指定</option>
+                {topicOptions.map((t) => <option key={t} value={t}>{t}</option>)}
+                <option value="__add__">➕ 新增主题…</option>
+              </select>
             </Field>
           </div>
           <div className="col-span-2">
