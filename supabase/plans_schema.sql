@@ -35,6 +35,12 @@ create table if not exists public.content_plans (
   reviewed_by text,                              -- 审批人邮箱
   reviewed_at timestamptz,
 
+  -- 逐账号发布进度：全部账号进入 published_account_ids 后 status 自动变 published
+  published_account_ids uuid[] default '{}',
+  -- 逾期：到点未发全即记 true（补发仍保留）；管理员消除时置 overdue_cleared=true
+  overdue         boolean default false,
+  overdue_cleared boolean default false,
+
   -- 发布后关联（可选）
   post_id uuid references public.posts(id) on delete set null,
 

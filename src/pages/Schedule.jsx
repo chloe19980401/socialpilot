@@ -48,6 +48,22 @@ const planPlatforms = (p, accountMap) => {
   }
   return p.platforms?.length ? p.platforms : (p.platform ? [p.platform] : [])
 }
+// 逐账号发布进度
+const publishedIds = (p) => p.published_account_ids || []
+const isFullyPublished = (p) => {
+  const ids = planAccountIds(p)
+  return ids.length > 0 && ids.every((id) => publishedIds(p).includes(id))
+}
+// 逾期用持久字段记录：一旦到点未发全就记一次，之后即使补发也保留，除非管理员消除
+const isOverdue = (p) => !!p.overdue && !p.overdue_cleared
+// 应当被判定/记录为逾期的条件（供页面加载时回填）
+const shouldFlagOverdue = (p) => (
+  p.status === 'approved' && p.scheduled_at &&
+  new Date(p.scheduled_at).getTime() < Date.now() &&
+  !isFullyPublished(p) && !p.overdue && !p.overdue_cleared
+)
+// 审核通过/已发布后锁定发布时间
+const isTimeLocked = (p) => p.status === 'approved' || p.status === 'published'
 const emptyForm = () => ({
   id: null, brand_id: '', account_ids: [], title: '', content: '',
   thumbnail_url: '', asset_url: '', content_type: 'image', topic: '', notes: '',
@@ -93,7 +109,14 @@ export default function Schedule() {
       supabase.from('accounts').select('id, display_name, handle, platform, brand_id'),
       supabase.from('profiles').select('id, email, name'),
     ])
-    setPlans(pl || [])
+    const list = pl || []
+    // 回填逾期：到点仍未发全的、审核通过的排期，记录为逾期（持久化）
+    const toFlag = list.filter(shouldFlagOverdue).map((p) => p.id)
+    if (toFlag.length) {
+      await supabase.from('content_plans').update({ overdue: true }).in('id', toFlag)
+      list.forEach((p) => { if (toFlag.includes(p.id)) p.overdue = true })
+    }
+    setPlans(list)
     setBrands(br || [])
     setAccounts(ac || [])
     setPeople(pe || [])
@@ -226,25 +249,52 @@ export default function Schedule() {
   }
   function reopen(p) { patch(p.id, { status: 'draft', review_note: null }) }
 
-  // 标记已发布：按所选账号各写一条 posts 记录，融入内容中心/日历
-  async function markPublished(p) {
-    const accs = planAccountIds(p).map((id) => accountMap[id]).filter(Boolean)
-    const n = accs.length || 1
-    if (!confirm(`把「${p.title || '未命名'}」标记为已发布？将向内容中心写入 ${n} 条发布记录${n > 1 ? '（每个账号各一条）' : ''}。`)) return
-    const publishedAt = p.scheduled_at || new Date().toISOString()
-    const rows = (accs.length ? accs : [null]).map((a) => ({
-      brand_id: p.brand_id, account_id: a?.id || null, platform: a?.platform || p.platform || null,
-      title: p.title, content: p.content, thumbnail_url: p.thumbnail_url,
-      operator_email: p.assignee_email, operator_name: p.assignee_name,
-      published_at: publishedAt, status: 'published',
-    }))
-    const { data: posts } = await supabase.from('posts').insert(rows).select('id')
-    patch(p.id, { status: 'published', post_id: posts?.[0]?.id || null })
+  // 生成一条 posts 记录的公共字段
+  const postRow = (p, acc) => ({
+    brand_id: p.brand_id, account_id: acc?.id || null, platform: acc?.platform || p.platform || null,
+    title: p.title, content: p.content, thumbnail_url: p.thumbnail_url,
+    operator_email: p.assignee_email, operator_name: p.assignee_name,
+    published_at: new Date().toISOString(), status: 'published',
+  })
+  // 逾期补丁：若发布时已过计划时间，记录逾期（补发后仍算，除非管理员消除）
+  const latePatch = (p) => (p.scheduled_at && Date.now() > new Date(p.scheduled_at).getTime() && !p.overdue_cleared ? { overdue: true } : {})
+
+  // 标记「单个账号」已发布
+  async function markAccountPublished(p, acc) {
+    if (publishedIds(p).includes(acc.id)) return
+    await supabase.from('posts').insert(postRow(p, acc))
+    const nextPub = [...publishedIds(p), acc.id]
+    const allIds = planAccountIds(p)
+    const done = allIds.length > 0 && allIds.every((id) => nextPub.includes(id))
+    patch(p.id, { published_account_ids: nextPub, ...(done ? { status: 'published' } : {}), ...latePatch(p) })
   }
 
-  // 拖拽改期（月/周视图）
+  // 一键把「剩余全部账号」标记已发布
+  async function markPublished(p) {
+    const ids = planAccountIds(p)
+    const remaining = ids.map((id) => accountMap[id]).filter((a) => a && !publishedIds(p).includes(a.id))
+    if (ids.length === 0) {
+      if (!confirm(`把「${p.title || '未命名'}」标记为已发布？`)) return
+      await supabase.from('posts').insert(postRow(p, null))
+      patch(p.id, { status: 'published', ...latePatch(p) })
+      return
+    }
+    if (remaining.length === 0) { patch(p.id, { status: 'published' }); return }
+    if (!confirm(`把「${p.title || '未命名'}」剩余 ${remaining.length} 个账号全部标记已发布？`)) return
+    await supabase.from('posts').insert(remaining.map((a) => postRow(p, a)))
+    patch(p.id, { published_account_ids: [...publishedIds(p), ...remaining.map((a) => a.id)], status: 'published', ...latePatch(p) })
+  }
+
+  // 管理员消除逾期
+  function clearOverdue(p) {
+    if (!confirm(`消除「${p.title || '未命名'}」的逾期记录？该记录将不再计入绩效扣分。`)) return
+    patch(p.id, { overdue_cleared: true })
+  }
+
+  // 拖拽改期（月/周视图）——审核通过后锁定发布时间
   function reschedule(id, dateObj, keepTime = true) {
     const p = plans.find((x) => x.id === id)
+    if (p && isTimeLocked(p)) { alert('该排期已审核通过，发布时间已锁定，不能改期。'); return }
     const base = p?.scheduled_at ? new Date(p.scheduled_at) : new Date()
     const next = new Date(dateObj)
     if (keepTime) next.setHours(base.getHours(), base.getMinutes(), 0, 0)
@@ -262,7 +312,7 @@ export default function Schedule() {
 
   const accountsForBrand = accounts.filter((a) => !form.brand_id || a.brand_id === form.brand_id)
 
-  const shared = { brandMap, accountMap, openEdit, remove, submitReview, approve, reject: (p) => setRejectFor(p), reopen, markPublished, reopen2: reopen, isAdmin, profile }
+  const shared = { brandMap, accountMap, openEdit, remove, submitReview, approve, reject: (p) => setRejectFor(p), reopen, markPublished, markAccountPublished, clearOverdue, isAdmin, profile }
 
   return (
     <div>
@@ -318,6 +368,7 @@ export default function Schedule() {
             value={view} onChange={setView}
             tabs={[
               { value: 'kanban', label: '看板' },
+              { value: 'board', label: '发布日历' },
               { value: 'month', label: '月' },
               { value: 'week', label: '周' },
               { value: 'list', label: '列表' },
@@ -336,6 +387,7 @@ export default function Schedule() {
       ) : (
         <>
           {view === 'kanban' && <KanbanView plans={filtered} onMove={moveStatus} {...shared} />}
+          {view === 'board' && <BoardCalendar plans={filtered} cursor={cursor} setCursor={setCursor} onEdit={openEdit} brandMap={brandMap} accountMap={accountMap} />}
           {view === 'month' && <MonthView plans={filtered} cursor={cursor} setCursor={setCursor} onReschedule={reschedule} onAdd={openNew} onEdit={openEdit} brandMap={brandMap} />}
           {view === 'week' && <WeekView plans={filtered} cursor={cursor} setCursor={setCursor} onReschedule={reschedule} onAdd={openNew} onEdit={openEdit} brandMap={brandMap} />}
           {view === 'list' && <ListView plans={filtered} {...shared} />}
@@ -393,7 +445,12 @@ export default function Schedule() {
               {people.map((p) => <option key={p.id} value={p.email}>{p.name || p.email}</option>)}
             </select>
           </Field>
-          <Field label="计划发布时间"><input type="datetime-local" className={inputClass} value={form.scheduled_at} onChange={(e) => setForm({ ...form, scheduled_at: e.target.value })} /></Field>
+          <Field label={isTimeLocked({ status: form.status }) ? '计划发布时间（已锁定）' : '计划发布时间'}>
+            <input type="datetime-local" className={inputClass + (isTimeLocked({ status: form.status }) ? ' bg-slate-50 text-slate-400' : '')}
+              value={form.scheduled_at} disabled={isTimeLocked({ status: form.status })}
+              onChange={(e) => setForm({ ...form, scheduled_at: e.target.value })} />
+            {isTimeLocked({ status: form.status }) && <span className="mt-1 block text-xs text-slate-400">审核通过后发布时间已锁定，不可更改。</span>}
+          </Field>
           <div className="col-span-2">
             <Field label="文案"><textarea rows={3} className={inputClass} value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} placeholder="正文文案…" /></Field>
           </div>
@@ -443,32 +500,55 @@ export default function Schedule() {
 }
 
 /* ---------------- 排期卡片操作区 ---------------- */
-function PlanActions({ p, isAdmin, openEdit, remove, submitReview, approve, reject, reopen, markPublished }) {
+function PlanActions({ p, isAdmin, accountMap, openEdit, remove, submitReview, approve, reject, reopen, markPublished, markAccountPublished, clearOverdue }) {
   const iconBtn = 'inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium transition'
+  const accs = planAccountIds(p).map((id) => accountMap?.[id]).filter(Boolean)
+  const pub = publishedIds(p)
   return (
-    <div className="flex flex-wrap items-center gap-1">
-      {p.status === 'draft' && (
-        <button className={`${iconBtn} bg-orange-50 text-orange-600 hover:bg-orange-100`} onClick={() => submitReview(p)}><Send size={12} /> 提交审核</button>
+    <div className="space-y-1.5">
+      {/* 审核通过后：逐账号发布进度 */}
+      {p.status === 'approved' && accs.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1">
+          <span className="text-[11px] text-slate-400">发布进度 {pub.filter((id) => planAccountIds(p).includes(id)).length}/{accs.length}：</span>
+          {accs.map((a) => {
+            const done = pub.includes(a.id)
+            const m = platformMeta(a.platform)
+            return done ? (
+              <span key={a.id} className="inline-flex items-center gap-1 rounded-lg bg-green-50 px-2 py-1 text-xs text-green-600" title={`${a.display_name || a.handle} 已发布`}><m.Icon size={12} />{a.display_name || a.handle}<Check size={12} /></span>
+            ) : (
+              <button key={a.id} onClick={() => markAccountPublished(p, a)} className={`${iconBtn} border border-slate-200 text-slate-600 hover:bg-brand-50 hover:text-brand-700`} title={`标记 ${a.display_name || a.handle} 已发布`}><m.Icon size={12} />{a.display_name || a.handle}<Rocket size={11} /></button>
+            )
+          })}
+        </div>
       )}
-      {p.status === 'pending' && isAdmin && (
-        <>
-          <button className={`${iconBtn} bg-green-50 text-green-600 hover:bg-green-100`} onClick={() => approve(p)}><Check size={12} /> 通过</button>
-          <button className={`${iconBtn} bg-red-50 text-red-600 hover:bg-red-100`} onClick={() => reject(p)}><X size={12} /> 驳回</button>
-        </>
-      )}
-      {p.status === 'pending' && !isAdmin && <Badge color="orange">等待管理员审核</Badge>}
-      {p.status === 'approved' && (
-        <button className={`${iconBtn} bg-brand-50 text-brand-700 hover:bg-brand-100`} onClick={() => markPublished(p)}><Rocket size={12} /> 标记已发布</button>
-      )}
-      {p.status === 'rejected' && (
-        <button className={`${iconBtn} bg-slate-100 text-slate-600 hover:bg-slate-200`} onClick={() => reopen(p)}><Pencil size={12} /> 重新编辑</button>
-      )}
-      {p.status !== 'published' && (
-        <button className={`${iconBtn} text-slate-400 hover:bg-slate-100 hover:text-slate-600`} onClick={() => openEdit(p)}><Pencil size={12} /></button>
-      )}
-      {p.status !== 'published' && (
-        <button className={`${iconBtn} text-slate-400 hover:bg-red-50 hover:text-red-600`} onClick={() => remove(p)}><Trash2 size={12} /></button>
-      )}
+      <div className="flex flex-wrap items-center gap-1">
+        {p.status === 'draft' && (
+          <button className={`${iconBtn} bg-orange-50 text-orange-600 hover:bg-orange-100`} onClick={() => submitReview(p)}><Send size={12} /> 提交审核</button>
+        )}
+        {p.status === 'pending' && isAdmin && (
+          <>
+            <button className={`${iconBtn} bg-green-50 text-green-600 hover:bg-green-100`} onClick={() => approve(p)}><Check size={12} /> 通过</button>
+            <button className={`${iconBtn} bg-red-50 text-red-600 hover:bg-red-100`} onClick={() => reject(p)}><X size={12} /> 驳回</button>
+          </>
+        )}
+        {p.status === 'pending' && !isAdmin && <Badge color="orange">等待管理员审核</Badge>}
+        {p.status === 'approved' && (
+          <button className={`${iconBtn} bg-brand-50 text-brand-700 hover:bg-brand-100`} onClick={() => markPublished(p)}><Rocket size={12} /> {accs.length > 1 ? '全部标记已发布' : '标记已发布'}</button>
+        )}
+        {p.status === 'rejected' && (
+          <button className={`${iconBtn} bg-slate-100 text-slate-600 hover:bg-slate-200`} onClick={() => reopen(p)}><Pencil size={12} /> 重新编辑</button>
+        )}
+        {isOverdue(p) && <Badge color="red">已逾期</Badge>}
+        {isOverdue(p) && isAdmin && (
+          <button className={`${iconBtn} bg-slate-100 text-slate-600 hover:bg-slate-200`} onClick={() => clearOverdue(p)} title="消除逾期记录">消除逾期</button>
+        )}
+        {p.status !== 'published' && (
+          <button className={`${iconBtn} text-slate-400 hover:bg-slate-100 hover:text-slate-600`} onClick={() => openEdit(p)}><Pencil size={12} /></button>
+        )}
+        {p.status !== 'published' && (
+          <button className={`${iconBtn} text-slate-400 hover:bg-red-50 hover:text-red-600`} onClick={() => remove(p)}><Trash2 size={12} /></button>
+        )}
+      </div>
     </div>
   )
 }
@@ -524,7 +604,7 @@ function KanbanView({ plans, onMove, brandMap, accountMap, ...actions }) {
                   {p.status === 'rejected' && p.review_note && (
                     <div className="mt-1.5 flex items-start gap-1 rounded-lg bg-red-50 px-2 py-1 text-[11px] text-red-600"><AlertTriangle size={11} className="mt-0.5 shrink-0" />{p.review_note}</div>
                   )}
-                  <div className="mt-2 border-t border-slate-100 pt-2"><PlanActions p={p} {...actions} /></div>
+                  <div className="mt-2 border-t border-slate-100 pt-2"><PlanActions p={p} accountMap={accountMap} {...actions} /></div>
                 </div>
               ))}
               {items.length === 0 && <div className="px-2 py-6 text-center text-xs text-slate-300">拖到这里</div>}
@@ -533,6 +613,59 @@ function KanbanView({ plans, onMove, brandMap, accountMap, ...actions }) {
         )
       })}
     </div>
+  )
+}
+
+/* ---------------- 发布日历看板（审核通过/已发布自动进入）---------------- */
+function BoardCalendar({ plans, cursor, setCursor, onEdit, brandMap, accountMap }) {
+  const y = cursor.getFullYear(); const m = cursor.getMonth()
+  const cells = monthMatrix(y, m); const today = new Date()
+  const board = plans.filter((p) => (p.status === 'approved' || p.status === 'published') && p.scheduled_at)
+  const colorOf = (p) => (isOverdue(p) ? '#ef4444' : p.status === 'published' ? '#22c55e' : '#3b6ef6')
+  return (
+    <Card className="p-0">
+      <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 p-3">
+        <Button onClick={() => setCursor(new Date(y, m - 1, 1))}><ChevronLeft size={16} /></Button>
+        <Button onClick={() => setCursor(new Date())}>今天</Button>
+        <Button onClick={() => setCursor(new Date(y, m + 1, 1))}><ChevronRight size={16} /></Button>
+        <div className="ml-2 text-lg font-bold text-slate-900">{y}年{m + 1}月 · 发布日历</div>
+        <div className="ml-auto flex items-center gap-3 text-xs text-slate-500">
+          <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full" style={{ background: '#3b6ef6' }} />待发布</span>
+          <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full" style={{ background: '#22c55e' }} />已发布</span>
+          <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full" style={{ background: '#ef4444' }} />逾期</span>
+        </div>
+      </div>
+      <div className="grid grid-cols-7 border-b border-slate-100 text-center text-sm text-slate-400">
+        {WEEKDAYS_CN.map((w) => <div key={w} className="py-2">{w}</div>)}
+      </div>
+      <div className="grid grid-cols-7">
+        {cells.map((d, i) => {
+          const inMonth = d.getMonth() === m
+          const isToday = sameDay(d, today)
+          const items = board.filter((p) => sameDay(p.scheduled_at, d))
+          return (
+            <div key={i} className={`min-h-[104px] border-b border-r border-slate-100 p-1.5 ${inMonth ? '' : 'bg-slate-50/50'}`}>
+              <div className={`mb-1 inline-flex h-6 w-6 items-center justify-center rounded-full text-sm ${isToday ? 'bg-brand-600 font-semibold text-white' : inMonth ? 'text-slate-700' : 'text-slate-300'}`}>{d.getDate()}</div>
+              <div className="space-y-1">
+                {items.map((p) => {
+                  const c = colorOf(p)
+                  const ids = planAccountIds(p)
+                  const doneN = publishedIds(p).filter((id) => ids.includes(id)).length
+                  return (
+                    <div key={p.id} onClick={() => onEdit(p)} title={`${p.title}｜${isOverdue(p) ? '逾期' : p.status === 'published' ? '已发布' : '待发布'}`}
+                      className="cursor-pointer truncate rounded px-1.5 py-0.5 text-[11px]" style={{ background: c + '22', color: c }}>
+                      <span className="mr-1 font-medium">{new Date(p.scheduled_at).getHours().toString().padStart(2, '0')}:{new Date(p.scheduled_at).getMinutes().toString().padStart(2, '0')}</span>
+                      {p.title || '未命名'}{ids.length > 1 ? ` (${doneN}/${ids.length})` : ''}
+                    </div>
+                  )
+                })}
+                {items.length === 0 && <span className="text-[10px] text-slate-300"> </span>}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </Card>
   )
 }
 
@@ -706,7 +839,7 @@ function ListView({ plans, brandMap, accountMap, ...actions }) {
                     {p.scheduled_at && <div className={`text-xs ${overdue ? 'text-red-500' : 'text-slate-400'}`}>{relativeDay(p.scheduled_at)}</div>}
                   </td>
                   <td className="px-4 py-3"><Badge color={meta.color}>{meta.label}</Badge></td>
-                  <td className="px-4 py-3"><div className="flex justify-end"><PlanActions p={p} {...actions} /></div></td>
+                  <td className="px-4 py-3"><div className="flex justify-end"><PlanActions p={p} accountMap={accountMap} {...actions} /></div></td>
                 </tr>
               )
             })}

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend,
 } from 'recharts'
-import { Award, RefreshCw, Plus, Target, CheckCircle2, TrendingUp, Users, ShoppingCart, RefreshCcw } from 'lucide-react'
+import { Award, RefreshCw, Plus, Target, CheckCircle2, TrendingUp, Users, ShoppingCart, RefreshCcw, AlertTriangle } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { Card, StatCard } from '../components/ui/Card'
 import PageHeader from '../components/ui/PageHeader'
@@ -28,11 +28,15 @@ function recentMonths(n = 6) {
   return [nextMonth(cur), ...out]
 }
 
+// 逾期扣分：初始 100%，每次逾期 -100/3，可为负；每月每人容限 3 次
+const OVERDUE_PENALTY = 100 / 3
+
 export default function Performance() {
   const [posts, setPosts] = useState([])
   const [goals, setGoals] = useState([])
   const [profiles, setProfiles] = useState([])
   const [orders, setOrders] = useState([])
+  const [plans, setPlans] = useState([])
   // 默认展示下个月（当前 KPI 考核月，如 8 月），而非本月
   const [month, setMonth] = useState(nextMonth(`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`))
   const [salesBy, setSalesBy] = useState('operator')
@@ -43,13 +47,14 @@ export default function Performance() {
 
   async function load() {
     setLoading(true)
-    const [{ data: ps }, { data: gs }, { data: pf }, { data: od }] = await Promise.all([
+    const [{ data: ps }, { data: gs }, { data: pf }, { data: od }, { data: pl }] = await Promise.all([
       supabase.from('posts').select('*'),
       supabase.from('kpi_goals').select('*'),
       supabase.from('profiles').select('*').order('name'),
       supabase.from('store_orders').select('*'),
+      supabase.from('content_plans').select('id, assignee_email, assignee_name, scheduled_at, overdue, overdue_cleared'),
     ])
-    setPosts(ps || []); setGoals(gs || []); setProfiles(pf || []); setOrders(od || [])
+    setPosts(ps || []); setGoals(gs || []); setProfiles(pf || []); setOrders(od || []); setPlans(pl || [])
     setLoading(false)
   }
   useEffect(() => { load() }, [])
@@ -93,6 +98,22 @@ export default function Performance() {
       overall: o.goals.length ? o.goals.reduce((s, x) => s + x.raw, 0) / o.goals.length : 0,
     }))
   }, [monthGoals])
+
+  // 发布逾期扣分：按选中月份、按人统计逾期次数（overdue 且未被消除）
+  const overdueScores = useMemo(() => {
+    const countBy = {}
+    plans
+      .filter((p) => p.scheduled_at && ym(p.scheduled_at) === month && p.overdue && !p.overdue_cleared)
+      .forEach((p) => { const k = p.assignee_email || p.assignee_name || '未分配'; countBy[k] = (countBy[k] || 0) + 1 })
+    const people = profiles.map((pf) => ({ email: pf.email, name: pf.name || pf.email }))
+    Object.keys(countBy).forEach((k) => { if (!people.find((x) => x.email === k)) people.push({ email: k, name: k }) })
+    return people
+      .map((pp) => {
+        const overdue = countBy[pp.email] || 0
+        return { ...pp, overdue, score: Math.round((100 - overdue * OVERDUE_PENALTY) * 10) / 10 }
+      })
+      .sort((a, b) => a.score - b.score)
+  }, [plans, month, profiles])
 
   function fmtMetric(metric, v) { return metric === '互动率' ? v + '%' : compactEN(v) }
 
@@ -221,6 +242,39 @@ export default function Performance() {
           <div className="text-center"><div className="text-lg font-bold text-slate-800">{sales.refundRate.toFixed(1)}%</div><div className="text-xs text-slate-400">退款率</div></div>
           <div className="text-center"><div className="text-lg font-bold text-slate-800">{sales.count}</div><div className="text-xs text-slate-400">期间订单数</div></div>
         </div>
+      </Card>
+
+      {/* 发布逾期扣分 */}
+      <Card className="mb-6">
+        <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2 font-semibold text-slate-800"><AlertTriangle size={18} className="text-amber-500" /> 发布逾期扣分 <span className="text-xs font-normal text-slate-400">{monthLabel(month).slice(5)}</span></div>
+          <span className="text-xs text-slate-400">初始 100%，每次逾期 -33.3%（可为负）· 每月每人容限 3 次</span>
+        </div>
+        <div className="mb-4 text-xs text-slate-400">逾期＝审核通过的排期到点未发全（多平台任一未发即算）；补发仍计，管理员可在排期页消除。</div>
+        {overdueScores.length === 0 ? (
+          <div className="py-8 text-center text-sm text-slate-400">{loading ? '加载中…' : '暂无运营人员数据'}</div>
+        ) : (
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
+            {overdueScores.map((o) => {
+              const color = o.score >= 100 ? '#22c55e' : o.score > 33 ? '#3b82f6' : o.score > 0 ? '#f59e0b' : '#ef4444'
+              return (
+                <div key={o.email || o.name} className="rounded-2xl border border-slate-100 p-4">
+                  <div className="mb-2 flex items-center gap-2">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 font-semibold text-slate-600">{(o.name || '?')[0]}</div>
+                    <div className="min-w-0"><div className="truncate text-sm font-semibold text-slate-800">{o.name}</div><div className="text-xs text-slate-400">逾期 {o.overdue} 次{o.overdue > 3 ? '（超容限）' : ''}</div></div>
+                  </div>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-2xl font-bold" style={{ color }}>{o.score}%</span>
+                    <span className="text-xs text-slate-400">得分</span>
+                  </div>
+                  <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+                    <div className="h-full rounded-full" style={{ width: Math.max(0, Math.min(100, o.score)) + '%', background: color }} />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
       </Card>
 
       {/* 人员绩效 */}
