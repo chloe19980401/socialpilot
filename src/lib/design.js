@@ -1,22 +1,30 @@
-// 设计台常量：排期设计任务状态、需求状态、优先级
+// 设计台常量：统一任务表的阶段、优先级、标签
 
-// 运营排期 → 设计任务的推进：待设计 -> 设计中 -> 已交付
-export const DESIGN_STATUS = {
-  pending: { key: 'pending', label: '待设计', color: 'orange', dot: '#f59e0b' },
-  doing:   { key: 'doing',   label: '设计中', color: 'blue',   dot: '#3b6ef6' },
-  done:    { key: 'done',    label: '已交付', color: 'green',  dot: '#22c55e' },
+// 统一三阶段（排期任务 / 手动需求共用）
+export const TASK_STAGE = {
+  todo:  { key: 'todo',  label: '待办',   color: 'orange', dot: '#f59e0b' },
+  doing: { key: 'doing', label: '进行中', color: 'blue',   dot: '#3b6ef6' },
+  done:  { key: 'done',  label: '已完成', color: 'green',  dot: '#22c55e' },
 }
-export const DESIGN_COLUMNS = ['pending', 'doing', 'done']
-export function designStatusMeta(k) { return DESIGN_STATUS[k] || DESIGN_STATUS.pending }
+export const TASK_STAGES = ['todo', 'doing', 'done']
+export function stageMeta(k) { return TASK_STAGE[k] || TASK_STAGE.todo }
 
-// 设计师自建需求：待办 -> 进行中 -> 完成
-export const REQ_STATUS = {
-  todo:  { key: 'todo',  label: '待办',   color: 'slate', dot: '#94a3b8' },
-  doing: { key: 'doing', label: '进行中', color: 'blue',  dot: '#3b6ef6' },
-  done:  { key: 'done',  label: '已完成', color: 'green', dot: '#22c55e' },
+// 运营排期在设计台里的固定标签（自动派单）
+export const AUTO_TAG = '运营自动'
+// 初始标签集合（可在新增需求时扩展）
+export const BASE_TAGS = ['运营自动', '社媒', '物料设计']
+
+// 排期 design_status <-> 统一阶段
+export const PLAN_TO_STAGE = { pending: 'todo', doing: 'doing', done: 'done' }
+export const STAGE_TO_PLAN = { todo: 'pending', doing: 'doing', done: 'done' }
+
+// 标签配色（Badge 仅支持 slate/blue/green/orange/red）
+export function tagColor(tag) {
+  if (tag === AUTO_TAG) return 'blue'
+  if (tag === '社媒') return 'orange'
+  if (tag === '物料设计') return 'slate'
+  return 'slate'
 }
-export const REQ_COLUMNS = ['todo', 'doing', 'done']
-export function reqStatusMeta(k) { return REQ_STATUS[k] || REQ_STATUS.todo }
 
 // 优先级
 export const PRIORITY = {
