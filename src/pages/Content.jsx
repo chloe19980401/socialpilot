@@ -153,19 +153,9 @@ export default function Content() {
   async function syncPosts() {
     setSyncing(true)
     try {
-      // 1) 账号粉丝/快照
       const res = await syncAll('accounts')
       const failed = res.filter((r) => r.error)
-      // 2) 帖子互动量：按 external_id 更新已有帖子的 播放/点赞/评论，绝不新增重复帖子
-      let metricMsg = ''
-      try {
-        const { data: m, error: mErr } = await supabase.functions.invoke('sync-post-metrics', { body: {} })
-        if (mErr) throw mErr
-        if (m?.error) metricMsg = '互动量同步：' + m.error
-        else if (m?.updated != null) metricMsg = `已更新 ${m.updated} 条帖子互动量${m.imported ? `，新导入 ${m.imported} 条` : ''}${m.failed ? `（${m.failed} 条未取到）` : ''}`
-      } catch (e) { metricMsg = '互动量同步失败：' + (e.message || e) }
-      const notes = [...failed.map((f) => `${f.platform}: ${f.error}`), metricMsg].filter(Boolean)
-      if (notes.length) alert(notes.join('\n'))
+      if (failed.length) alert('部分平台未配置或失败：\n' + failed.map((f) => `${f.platform}: ${f.error}`).join('\n'))
       await load()
     } catch (e) { alert('同步失败：' + (e.message || e)) } finally { setSyncing(false) }
   }
