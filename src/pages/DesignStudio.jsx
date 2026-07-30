@@ -18,10 +18,13 @@ import {
 const planAccountIds = (p) => (p.account_ids?.length ? p.account_ids : (p.account_id ? [p.account_id] : []))
 const isOverdue = (d) => d && new Date(d) < new Date(new Date().toDateString())
 
-// 用时：已完成算 开始→完成，进行中算 开始→今天（首日计为第 1 天）
+// 用时：已完成算 开始→完成，进行中算 开始→今天（首日计为第 1 天）；开始日未到则显示「—」
 function durationLabel(r) {
   if (!r.start_date) return ''
   const start = new Date(r.start_date)
+  const startDay = new Date(new Date(r.start_date).toDateString())
+  const today = new Date(new Date().toDateString())
+  if (r.status !== 'done' && startDay > today) return '—'   // 还没到开始日期，未开始
   const end = r.status === 'done' && r.done_at ? new Date(r.done_at) : new Date()
   const days = Math.max(1, Math.round((end - start) / 86400000) + 1)
   return r.status === 'done' ? `用时 ${days} 天` : `已 ${days} 天`

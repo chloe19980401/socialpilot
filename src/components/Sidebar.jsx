@@ -57,6 +57,8 @@ export default function Sidebar() {
         </div>
       </div>
 
+      {/* 可滚动区：品牌工作区 + 导航 + 账号（整体可滚动，避免导航变长时底部被裁掉） */}
+      <div className="min-h-0 flex-1 overflow-y-auto">
       {/* 品牌工作区 */}
       <div className="px-4 pb-2 pt-4">
         <div className="mb-2 text-xs font-medium text-slate-400">品牌工作区</div>
@@ -92,7 +94,7 @@ export default function Sidebar() {
       </nav>
 
       {/* 全部账号 */}
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-2">
+      <div className="px-4 py-2">
         <div className="mb-2 text-xs font-medium text-slate-400">全部账号</div>
         {accounts.length === 0 && (
           <div className="px-1 py-2 text-xs text-slate-300">暂无账号，去「品牌管理」添加</div>
@@ -120,6 +122,7 @@ export default function Sidebar() {
             )
           })}
         </div>
+      </div>
       </div>
 
       {/* 用户菜单 */}
