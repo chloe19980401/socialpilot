@@ -67,13 +67,14 @@ const isTimeLocked = (p) => p.status === 'approved' || p.status === 'published'
 const emptyForm = () => ({
   id: null, brand_id: '', account_ids: [], title: '', content: '',
   thumbnail_url: '', asset_url: '', content_type: 'image', topic: '', notes: '',
-  assignee_email: '', scheduled_at: '', status: 'draft',
+  assignee_email: '', designer_email: '', scheduled_at: '', status: 'draft',
 })
 
 /* ---------------- 主组件 ---------------- */
 export default function Schedule() {
   const { profile } = useAuth()
   const isAdmin = profile?.role === 'admin'
+  const readOnly = profile?.role === 'designer'   // 设计师：发布排期只读，仅可查看（含逾期）
 
   const [plans, setPlans] = useState([])
   const [brands, setBrands] = useState([])
@@ -107,7 +108,7 @@ export default function Schedule() {
       supabase.from('content_plans').select('*').order('scheduled_at', { ascending: true }),
       supabase.from('brands').select('id, name, color'),
       supabase.from('accounts').select('id, display_name, handle, platform, brand_id'),
-      supabase.from('profiles').select('id, email, name'),
+      supabase.from('profiles').select('id, email, name, role'),
     ])
     const list = pl || []
     // 回填逾期：到点仍未发全的、审核通过的排期，记录为逾期（持久化）
@@ -167,6 +168,7 @@ export default function Schedule() {
 
   /* ---------- 打开表单 ---------- */
   function openNew(prefillDate) {
+    if (readOnly) return
     const f = emptyForm()
     if (prefillDate) {
       const d = new Date(prefillDate); d.setHours(10, 0, 0, 0)
@@ -177,12 +179,14 @@ export default function Schedule() {
     setForm(f); setModalOpen(true)
   }
   function openEdit(p) {
+    if (readOnly) return
     setForm({
       id: p.id, brand_id: p.brand_id || '', account_ids: planAccountIds(p),
       title: p.title || '', content: p.content || '',
       thumbnail_url: p.thumbnail_url || '', asset_url: p.asset_url || '',
       content_type: p.content_type || 'image', topic: p.topic || '',
       notes: p.notes || '', assignee_email: p.assignee_email || '',
+      designer_email: p.designer_email || '',
       scheduled_at: toLocalInput(p.scheduled_at), status: p.status || 'draft',
     })
     setModalOpen(true)
@@ -193,6 +197,7 @@ export default function Schedule() {
     if (!form.title.trim()) { alert('请填写标题'); return }
     setSaving(true)
     const person = people.find((x) => x.email === form.assignee_email)
+    const designerPerson = people.find((x) => x.email === form.designer_email)
     const selAccounts = form.account_ids.map((id) => accountMap[id]).filter(Boolean)
     const derivedPlatforms = [...new Set(selAccounts.map((a) => a.platform).filter(Boolean))]
     const payload = {
@@ -210,6 +215,8 @@ export default function Schedule() {
       notes: form.notes || null,
       assignee_email: form.assignee_email || null,
       assignee_name: person?.name || (form.assignee_email ? form.assignee_email.split('@')[0] : null),
+      designer_email: form.designer_email || null,
+      designer_name: designerPerson?.name || (form.designer_email ? form.designer_email.split('@')[0] : null),
       scheduled_at: form.scheduled_at ? new Date(form.scheduled_at).toISOString() : null,
     }
     let error
@@ -293,6 +300,7 @@ export default function Schedule() {
 
   // 拖拽改期（月/周视图）——审核通过后锁定发布时间
   function reschedule(id, dateObj, keepTime = true) {
+    if (readOnly) return
     const p = plans.find((x) => x.id === id)
     if (p && isTimeLocked(p)) { alert('该排期已审核通过，发布时间已锁定，不能改期。'); return }
     const base = p?.scheduled_at ? new Date(p.scheduled_at) : new Date()
@@ -302,6 +310,7 @@ export default function Schedule() {
   }
   // 拖拽切状态（看板）
   function moveStatus(id, status) {
+    if (readOnly) return
     const p = plans.find((x) => x.id === id)
     if (!p || p.status === status) return
     if (['approved', 'rejected'].includes(status) && !isAdmin) { alert('仅管理员可审批'); return }
@@ -312,7 +321,7 @@ export default function Schedule() {
 
   const accountsForBrand = accounts.filter((a) => !form.brand_id || a.brand_id === form.brand_id)
 
-  const shared = { brandMap, accountMap, openEdit, remove, submitReview, approve, reject: (p) => setRejectFor(p), reopen, markPublished, markAccountPublished, clearOverdue, isAdmin, profile }
+  const shared = { brandMap, accountMap, openEdit, remove, submitReview, approve, reject: (p) => setRejectFor(p), reopen, markPublished, markAccountPublished, clearOverdue, isAdmin, profile, readOnly }
 
   return (
     <div>
@@ -323,7 +332,7 @@ export default function Schedule() {
         actions={
           <>
             <Button onClick={load}><RefreshCw size={16} /> 刷新</Button>
-            <Button variant="primary" onClick={() => openNew()}><Plus size={16} /> 新增排期</Button>
+            {!readOnly && <Button variant="primary" onClick={() => openNew()}><Plus size={16} /> 新增排期</Button>}
           </>
         }
       />
@@ -443,6 +452,12 @@ export default function Schedule() {
             <select className={inputClass} value={form.assignee_email} onChange={(e) => setForm({ ...form, assignee_email: e.target.value })}>
               <option value="">未分配</option>
               {people.map((p) => <option key={p.id} value={p.email}>{p.name || p.email}</option>)}
+            </select>
+          </Field>
+          <Field label="指派设计师（选了才进设计台）">
+            <select className={inputClass} value={form.designer_email} onChange={(e) => setForm({ ...form, designer_email: e.target.value })}>
+              <option value="">不需要设计</option>
+              {people.filter((x) => x.role === 'designer').map((p) => <option key={p.id} value={p.email}>{p.name || p.email}</option>)}
             </select>
           </Field>
           <Field label={isTimeLocked({ status: form.status }) ? '计划发布时间（已锁定）' : '计划发布时间'}>
@@ -587,8 +602,8 @@ function KanbanView({ plans, onMove, brandMap, accountMap, ...actions }) {
             </div>
             <div className="space-y-2">
               {items.map((p) => (
-                <div key={p.id} draggable onDragStart={() => setDragId(p.id)} onDragEnd={() => setDragId(null)}
-                  className="cursor-grab rounded-xl border border-slate-200 bg-white p-3 shadow-sm active:cursor-grabbing">
+                <div key={p.id} draggable={!actions.readOnly} onDragStart={() => setDragId(p.id)} onDragEnd={() => setDragId(null)}
+                  className={`rounded-xl border border-slate-200 bg-white p-3 shadow-sm ${actions.readOnly ? '' : 'cursor-grab active:cursor-grabbing'}`}>
                   <div className="mb-1 text-sm font-medium text-slate-800">{p.title || '未命名'}</div>
                   {p.scheduled_at && (
                     <div className="mb-1.5 inline-flex items-center gap-1 text-xs text-slate-500"><Clock size={11} />{fmtDateTime(p.scheduled_at)}
@@ -604,10 +619,10 @@ function KanbanView({ plans, onMove, brandMap, accountMap, ...actions }) {
                   {p.status === 'rejected' && p.review_note && (
                     <div className="mt-1.5 flex items-start gap-1 rounded-lg bg-red-50 px-2 py-1 text-[11px] text-red-600"><AlertTriangle size={11} className="mt-0.5 shrink-0" />{p.review_note}</div>
                   )}
-                  <div className="mt-2 border-t border-slate-100 pt-2"><PlanActions p={p} accountMap={accountMap} {...actions} /></div>
+                  {!actions.readOnly && <div className="mt-2 border-t border-slate-100 pt-2"><PlanActions p={p} accountMap={accountMap} {...actions} /></div>}
                 </div>
               ))}
-              {items.length === 0 && <div className="px-2 py-6 text-center text-xs text-slate-300">拖到这里</div>}
+              {items.length === 0 && <div className="px-2 py-6 text-center text-xs text-slate-300">{actions.readOnly ? '暂无' : '拖到这里'}</div>}
             </div>
           </div>
         )
@@ -850,7 +865,7 @@ function ListView({ plans, brandMap, accountMap, ...actions }) {
                     {p.scheduled_at && <div className={`text-xs ${overdue ? 'text-red-500' : 'text-slate-400'}`}>{relativeDay(p.scheduled_at)}</div>}
                   </td>
                   <td className="px-4 py-3"><Badge color={meta.color}>{meta.label}</Badge></td>
-                  <td className="px-4 py-3"><div className="flex justify-end"><PlanActions p={p} accountMap={accountMap} {...actions} /></div></td>
+                  <td className="px-4 py-3">{actions.readOnly ? <span className="text-slate-300">—</span> : <div className="flex justify-end"><PlanActions p={p} accountMap={accountMap} {...actions} /></div>}</td>
                 </tr>
               )
             })}

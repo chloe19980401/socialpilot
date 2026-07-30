@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import {
   LayoutGrid, Globe, FileText, Calendar, CalendarClock, Star, ShoppingCart,
-  BarChart3, Award, Settings as SettingsIcon, ChevronDown, ChevronsUpDown, LogOut,
+  BarChart3, Award, Settings as SettingsIcon, ChevronDown, ChevronsUpDown, LogOut, Palette,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
@@ -15,12 +15,16 @@ const NAV = [
   { to: '/content', label: '内容中心', Icon: FileText },
   { to: '/calendar', label: '日历', Icon: Calendar },
   { to: '/schedule', label: '发布排期', Icon: CalendarClock },
+  { to: '/design', label: '设计台', Icon: Palette },
   { to: '/logs', label: 'KOL 红人管理', Icon: Star },
   { to: '/trends', label: '自建站看板', Icon: ShoppingCart },
   { to: '/competitors', label: '竞品分析', Icon: BarChart3 },
   { to: '/performance', label: '绩效看板', Icon: Award },
   { to: '/settings', label: '设置', Icon: SettingsIcon },
 ]
+
+// 设计师只看「设计台 + 发布排期」，其余角色看全部
+const DESIGNER_NAV = ['/design', '/schedule']
 
 export default function Sidebar() {
   const { profile, signOut } = useAuth()
@@ -70,7 +74,7 @@ export default function Sidebar() {
 
       {/* 导航 */}
       <nav className="px-3 py-2">
-        {NAV.map(({ to, label, Icon, end }) => (
+        {(profile?.role === 'designer' ? NAV.filter((n) => DESIGNER_NAV.includes(n.to)) : NAV).map(({ to, label, Icon, end }) => (
           <NavLink
             key={to}
             to={to}
@@ -139,7 +143,7 @@ export default function Sidebar() {
           </div>
           <div className="min-w-0 flex-1">
             <div className="truncate text-sm font-semibold text-slate-800">{profile?.name || '用户'}</div>
-            <div className="text-xs text-slate-400">{profile?.role === 'admin' ? '管理员' : '协作者'}</div>
+            <div className="text-xs text-slate-400">{profile?.role === 'admin' ? '管理员' : profile?.role === 'designer' ? '设计师' : '协作者'}</div>
           </div>
           <ChevronsUpDown size={16} className="text-slate-400" />
         </button>

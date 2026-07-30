@@ -7,6 +7,7 @@ import Brands from './pages/Brands'
 import Content from './pages/Content'
 import Calendar from './pages/Calendar'
 import Schedule from './pages/Schedule'
+import DesignStudio from './pages/DesignStudio'
 import Kol from './pages/Kol'
 import Ecommerce from './pages/Ecommerce'
 import Competitors from './pages/Competitors'
@@ -25,6 +26,13 @@ function Protected({ children }) {
   return children
 }
 
+// 首页：设计师默认落地「设计台」，其余角色进仪表盘
+function Home() {
+  const { profile } = useAuth()
+  if (profile?.role === 'designer') return <Navigate to="/design" replace />
+  return <Dashboard />
+}
+
 export default function App() {
   return (
     <Routes>
@@ -36,11 +44,12 @@ export default function App() {
           </Protected>
         }
       >
-        <Route path="/" element={<Dashboard />} />
+        <Route path="/" element={<Home />} />
         <Route path="/brands" element={<Brands />} />
         <Route path="/content" element={<Content />} />
         <Route path="/calendar" element={<Calendar />} />
         <Route path="/schedule" element={<Schedule />} />
+        <Route path="/design" element={<DesignStudio />} />
         <Route path="/logs" element={<Kol />} />
         <Route path="/trends" element={<Ecommerce />} />
         <Route path="/competitors" element={<Competitors />} />
