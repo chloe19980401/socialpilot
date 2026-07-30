@@ -198,6 +198,17 @@ export default function Content() {
         alert('该链接的帖子已存在，已更新为你填写的信息（未新增重复帖子）。')
       } else {
         await supabase.from('posts').insert(row)
+        // 新帖上传 → 即时发飞书群提醒（失败不影响上传）
+        supabase.functions.invoke('feishu-notify', {
+          body: {
+            title: row.title,
+            platform: row.platform,
+            url: row.url,
+            brand: brands.find((b) => b.id === row.brand_id)?.name || null,
+            operator_name: row.operator_name,
+            uploader: profile?.name || (profile?.email ? profile.email.split('@')[0] : null),
+          },
+        }).catch(() => {})
       }
     }
     setModal(false)
