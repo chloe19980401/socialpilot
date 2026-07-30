@@ -256,20 +256,14 @@ export default function Schedule() {
   }
   function reopen(p) { patch(p.id, { status: 'draft', review_note: null }) }
 
-  // 生成一条 posts 记录的公共字段
-  const postRow = (p, acc) => ({
-    brand_id: p.brand_id, account_id: acc?.id || null, platform: acc?.platform || p.platform || null,
-    title: p.title, content: p.content, thumbnail_url: p.thumbnail_url,
-    operator_email: p.assignee_email, operator_name: p.assignee_name,
-    published_at: new Date().toISOString(), status: 'published',
-  })
+  // 说明：排期「标记已发布」只更新排期自身状态，不再写入 posts 表，
+  // 内容中心只保留「手动上传」和「API 自动同步」的帖子。
   // 逾期补丁：若发布时已过计划时间，记录逾期（补发后仍算，除非管理员消除）
   const latePatch = (p) => (p.scheduled_at && Date.now() > new Date(p.scheduled_at).getTime() && !p.overdue_cleared ? { overdue: true } : {})
 
   // 标记「单个账号」已发布
   async function markAccountPublished(p, acc) {
     if (publishedIds(p).includes(acc.id)) return
-    await supabase.from('posts').insert(postRow(p, acc))
     const nextPub = [...publishedIds(p), acc.id]
     const allIds = planAccountIds(p)
     const done = allIds.length > 0 && allIds.every((id) => nextPub.includes(id))
@@ -282,13 +276,11 @@ export default function Schedule() {
     const remaining = ids.map((id) => accountMap[id]).filter((a) => a && !publishedIds(p).includes(a.id))
     if (ids.length === 0) {
       if (!confirm(`把「${p.title || '未命名'}」标记为已发布？`)) return
-      await supabase.from('posts').insert(postRow(p, null))
       patch(p.id, { status: 'published', ...latePatch(p) })
       return
     }
     if (remaining.length === 0) { patch(p.id, { status: 'published' }); return }
     if (!confirm(`把「${p.title || '未命名'}」剩余 ${remaining.length} 个账号全部标记已发布？`)) return
-    await supabase.from('posts').insert(remaining.map((a) => postRow(p, a)))
     patch(p.id, { published_account_ids: [...publishedIds(p), ...remaining.map((a) => a.id)], status: 'published', ...latePatch(p) })
   }
 
