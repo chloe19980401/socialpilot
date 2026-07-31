@@ -159,12 +159,18 @@ export default function Schedule() {
     setUploading(false)
   }
 
-  const filtered = useMemo(() => plans.filter((p) => (
+  // 只按 品牌/平台/运营 筛（不含状态）——状态统计卡用它，保证切状态时各状态数字不变
+  const baseFiltered = useMemo(() => plans.filter((p) => (
     (fBrand === 'all' || p.brand_id === fBrand) &&
     (fPlatform === 'all' || planPlatforms(p, accountMap).includes(fPlatform)) &&
-    (fAssignee === 'all' || p.assignee_email === fAssignee) &&
-    (fStatus === 'all' || p.status === fStatus)
-  )), [plans, fBrand, fPlatform, fAssignee, fStatus, accountMap])
+    (fAssignee === 'all' || p.assignee_email === fAssignee)
+  )), [plans, fBrand, fPlatform, fAssignee, accountMap])
+
+  // 再叠加状态筛选——各视图用它
+  const filtered = useMemo(
+    () => baseFiltered.filter((p) => (fStatus === 'all' || p.status === fStatus)),
+    [baseFiltered, fStatus]
+  )
 
   /* ---------- 打开表单 ---------- */
   function openNew(prefillDate) {
@@ -333,7 +339,7 @@ export default function Schedule() {
       <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-5">
         {['draft', 'pending', 'approved', 'published', 'rejected'].map((s) => {
           const meta = statusMeta(s)
-          const n = filtered.filter((p) => p.status === s).length
+          const n = baseFiltered.filter((p) => p.status === s).length
           return (
             <button key={s} onClick={() => setFStatus(fStatus === s ? 'all' : s)}
               className={`flex items-center gap-3 rounded-2xl border p-3 text-left transition ${fStatus === s ? 'border-brand-500 ring-1 ring-brand-500' : 'border-slate-200 hover:border-slate-300'}`}>
