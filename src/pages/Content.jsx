@@ -3,7 +3,7 @@ import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid,
 } from 'recharts'
 import {
-  RefreshCw, Upload, FileText, Heart, Eye, MessageCircle, TrendingUp,
+  Upload, FileText, Heart, Eye, MessageCircle, TrendingUp,
   Share2, Bookmark, RefreshCcw, Pencil, Trash2, Plus,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
@@ -230,10 +230,7 @@ export default function Content() {
         title="内容中心"
         subtitle="管理员视图 — 查看所有运营的发布记录"
         actions={
-          <>
-            <Button onClick={load}><RefreshCw size={16} /> 刷新数据</Button>
-            <Button variant="primary" onClick={openNew}><Upload size={16} /> 上传帖子</Button>
-          </>
+          <Button variant="primary" onClick={openNew}><Upload size={16} /> 上传帖子</Button>
         }
       />
 
