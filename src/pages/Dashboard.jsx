@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid,
-  PieChart, Pie, Cell, BarChart, Bar, Legend,
+  PieChart, Pie, Cell, Legend,
 } from 'recharts'
 import { RefreshCw, Plus, Users, TrendingUp, Target, Activity } from 'lucide-react'
 import { supabase } from '../lib/supabase'
@@ -17,19 +17,23 @@ export default function Dashboard() {
   const [accounts, setAccounts] = useState([])
   const [brands, setBrands] = useState([])
   const [posts, setPosts] = useState([])
+  const [snapshots, setSnapshots] = useState([])
   const [brandTab, setBrandTab] = useState('all')
   const [loading, setLoading] = useState(true)
 
   async function load() {
     setLoading(true)
-    const [{ data: acc }, { data: br }, { data: ps }] = await Promise.all([
+    const [{ data: acc }, { data: br }, { data: ps }, { data: snaps }] = await Promise.all([
       supabase.from('accounts').select('*'),
       supabase.from('brands').select('*'),
       supabase.from('posts').select('platform, published_at, brand_id'),
+      supabase.from('metric_snapshots').select('platform, followers, captured_at, subject_id')
+        .eq('subject_type', 'account').order('captured_at', { ascending: true }),
     ])
     setAccounts(acc || [])
     setBrands(br || [])
     setPosts(ps || [])
+    setSnapshots(snaps || [])
     setLoading(false)
   }
   useEffect(() => { load() }, [])
@@ -50,32 +54,48 @@ export default function Dashboard() {
     return Object.entries(map).map(([k, v]) => ({ name: platformMeta(k).label, value: v }))
   }, [filteredAccounts])
 
+  // 现有平台（账号 + 帖子里出现过的）——用于动态画线
+  const platforms = useMemo(
+    () => [...new Set([...accounts.map((a) => a.platform), ...posts.map((p) => p.platform)].filter(Boolean))],
+    [accounts, posts]
+  )
+
   const publishSeries = useMemo(() => {
-    // 近 7 天发布数量按平台
+    // 近 7 天发布数量，按全部平台
     const days = [...Array(7)].map((_, i) => {
       const d = new Date()
       d.setDate(d.getDate() - (6 - i))
       return d
     })
     return days.map((d) => {
-      const key = `${d.getMonth() + 1}-${d.getDate()}`
-      const dayPosts = posts.filter((p) => {
-        if (!p.published_at) return false
-        const pd = new Date(p.published_at)
-        return pd.toDateString() === d.toDateString()
-      })
-      return {
-        date: key,
-        Instagram: dayPosts.filter((p) => p.platform === 'instagram').length,
-        YouTube: dayPosts.filter((p) => p.platform === 'youtube').length,
-      }
+      const dayPosts = posts.filter((p) => p.published_at && new Date(p.published_at).toDateString() === d.toDateString())
+      const row = { date: `${d.getMonth() + 1}-${d.getDate()}` }
+      platforms.forEach((pl) => { row[pl] = dayPosts.filter((p) => p.platform === pl).length })
+      return row
     })
-  }, [posts])
+  }, [posts, platforms])
 
-  const reachSeries = useMemo(
-    () => [...Array(4)].map((_, i) => ({ name: `第${i + 1}周`, Instagram: 0, YouTube: 0 })),
-    []
-  )
+  // 粉丝增长趋势：用每天的 metric_snapshots，缺失当天则沿用上一次值
+  const followerSeries = useMemo(() => {
+    const ids = new Set(filteredAccounts.map((a) => a.id))
+    const snaps = snapshots.filter((s) => ids.has(s.subject_id))
+    if (!snaps.length) return []
+    const dates = [...new Set(snaps.map((s) => s.captured_at))].sort()
+    const byP = {}
+    snaps.forEach((s) => {
+      byP[s.platform] = byP[s.platform] || {}
+      byP[s.platform][s.captured_at] = (byP[s.platform][s.captured_at] || 0) + (s.followers || 0)
+    })
+    const last = {}
+    return dates.map((dt) => {
+      const row = { date: String(dt).slice(5) }
+      platforms.forEach((pl) => {
+        if (byP[pl] && byP[pl][dt] != null) last[pl] = byP[pl][dt]
+        row[pl] = last[pl] ?? 0
+      })
+      return row
+    })
+  }, [snapshots, filteredAccounts, platforms])
 
   const brandTabs = [
     { value: 'all', label: '全部汇总' },
@@ -114,8 +134,10 @@ export default function Dashboard() {
               <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: '#94a3b8' }} />
               <Tooltip />
               <Legend />
-              <Line type="monotone" dataKey="Instagram" stroke="#E1306C" strokeWidth={2} />
-              <Line type="monotone" dataKey="YouTube" stroke="#FF0000" strokeWidth={2} />
+              {platforms.map((pl) => (
+                <Line key={pl} type="monotone" dataKey={pl} name={platformMeta(pl).label}
+                  stroke={platformMeta(pl).color} strokeWidth={2} dot={{ r: 3 }} />
+              ))}
             </LineChart>
           </ResponsiveContainer>
         </Card>
@@ -139,18 +161,26 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card>
-          <div className="mb-4 font-semibold text-slate-800">近 4 周触达趋势</div>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={reachSeries}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-              <XAxis dataKey="name" tick={{ fontSize: 12, fill: '#94a3b8' }} />
-              <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: '#94a3b8' }} />
-              <Tooltip />
-              <Legend />
-              <Bar dataKey="Instagram" fill="#E1306C" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="YouTube" fill="#FF0000" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          <div className="mb-4 font-semibold text-slate-800">粉丝增长趋势（各平台）</div>
+          {followerSeries.length === 0 ? (
+            <div className="flex h-[220px] items-center justify-center text-sm text-slate-400">
+              {loading ? '加载中…' : '暂无粉丝快照，同步后按天积累'}
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={220}>
+              <LineChart data={followerSeries}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                <XAxis dataKey="date" tick={{ fontSize: 12, fill: '#94a3b8' }} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: '#94a3b8' }} />
+                <Tooltip />
+                <Legend />
+                {platforms.map((pl) => (
+                  <Line key={pl} type="monotone" dataKey={pl} name={platformMeta(pl).label}
+                    stroke={platformMeta(pl).color} strokeWidth={2} dot={{ r: 3 }} />
+                ))}
+              </LineChart>
+            </ResponsiveContainer>
+          )}
         </Card>
         <Card>
           <div className="mb-4 font-semibold text-slate-800">账号概览</div>
