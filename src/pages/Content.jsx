@@ -57,12 +57,13 @@ const METRICS = [
   { key: 'engagement', label: '平均互动率', icon: <TrendingUp size={20} />, fmt: () => '0.00%' },
 ]
 const RANGES = [{ value: 7, label: '近7天' }, { value: 14, label: '近14天' }, { value: 30, label: '近30天' }]
-const emptyPost = { url: '', title: '', platform: 'instagram', brand_id: '', published_at: '', operator: '', designer: '', thumbnail_url: '' }
+const emptyPost = { url: '', title: '', platform: 'instagram', brand_id: '', published_at: '', operator: '', designer: '', thumbnail_url: '', plan_id: '' }
 
 export default function Content() {
   const [posts, setPosts] = useState([])
   const [brands, setBrands] = useState([])
   const [profiles, setProfiles] = useState([])
+  const [plans, setPlans] = useState([])
   const [brandTab, setBrandTab] = useState('all')
   const [platformTab, setPlatformTab] = useState('all')
   const [operatorTab, setOperatorTab] = useState('all')
@@ -77,14 +78,17 @@ export default function Content() {
 
   async function load() {
     setLoading(true)
-    const [{ data: ps }, { data: br }, { data: pf }] = await Promise.all([
+    const [{ data: ps }, { data: br }, { data: pf }, { data: pl }] = await Promise.all([
       supabase.from('posts').select('*').order('published_at', { ascending: false, nullsFirst: false }),
       supabase.from('brands').select('*'),
       supabase.from('profiles').select('*').order('name'),
+      supabase.from('content_plans').select('id, title, scheduled_at, brand_id, status')
+        .eq('status', 'approved').order('scheduled_at', { ascending: true, nullsFirst: false }),
     ])
     setPosts(ps || [])
     setBrands(br || [])
     setProfiles(pf || [])
+    setPlans(pl || [])
     setLoading(false)
   }
   useEffect(() => { load() }, [])
@@ -171,6 +175,53 @@ export default function Content() {
     setModal(true)
   }
 
+  async function getAccPlat() {
+    const { data: accs } = await supabase.from('accounts').select('id, platform')
+    return Object.fromEntries((accs || []).map((a) => [a.id, a.platform]))
+  }
+
+  // 把一条已审核排期按当前帖子的平台记为已发布；账号发齐则整条置为「已发布」
+  async function markPlanPublished(p, row, accPlat) {
+    const ids = p.account_ids?.length ? p.account_ids : (p.account_id ? [p.account_id] : [])
+    const pub = p.published_account_ids || []
+    // 与手动发布一致：过了计划时间才发的记一次逾期
+    const late = (p.scheduled_at && Date.now() > new Date(p.scheduled_at).getTime() && !p.overdue_cleared) ? { overdue: true } : {}
+    if (ids.length === 0) {
+      await supabase.from('content_plans').update({ status: 'published', ...late }).eq('id', p.id)
+      return
+    }
+    const target = ids.find((id) => accPlat[id] === row.platform && !pub.includes(id))
+    if (!target) return
+    const nextPub = [...pub, target]
+    const done = ids.every((id) => nextPub.includes(id))
+    await supabase.from('content_plans').update({
+      published_account_ids: nextPub,
+      ...(done ? { status: 'published' } : {}),
+      ...late,
+    }).eq('id', p.id)
+  }
+
+  // 手动关联：直接回填运营选定的那条排期
+  async function publishLinkedPlan(planId, row) {
+    const { data: p } = await supabase.from('content_plans').select('*').eq('id', planId).maybeSingle()
+    if (!p || p.status !== 'approved') return
+    await markPlanPublished(p, row, await getAccPlat())
+  }
+
+  // 未手动关联时的兜底：按 标题(主题)+品牌+平台 自动匹配已审核排期
+  async function autoMatchPublish(row) {
+    const norm = (s) => (s || '').trim().toLowerCase()
+    if (!norm(row.title)) return
+    const { data: allPlans } = await supabase.from('content_plans').select('*').eq('status', 'approved')
+    const matches = (allPlans || []).filter((p) =>
+      norm(p.title) === norm(row.title) &&
+      !(row.brand_id && p.brand_id && p.brand_id !== row.brand_id)
+    )
+    if (!matches.length) return
+    const accPlat = await getAccPlat()
+    for (const p of matches) await markPlanPublished(p, row, accPlat)
+  }
+
   async function savePost(e) {
     e.preventDefault()
     const de = profiles.find((x) => x.email === form.designer)
@@ -210,6 +261,9 @@ export default function Content() {
           },
         }).catch(() => {})
       }
+      // 回填排期「已发布」：选了「关联排期」就精确回填那条，否则按标题自动匹配
+      if (form.plan_id) await publishLinkedPlan(form.plan_id, row)
+      else await autoMatchPublish(row)
     }
     setModal(false)
     load()
@@ -391,6 +445,22 @@ export default function Content() {
             </select>
           </Field>
           <div className="col-span-2"><Field label="标题 / 文案（可选）"><input className={inputClass} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="留空则同步时自动回填" /></Field></div>
+          {!editing && (
+            <div className="col-span-2">
+              <Field label="关联排期（选了发布后自动回填该排期为「已发布」）">
+                <select className={inputClass} value={form.plan_id} onChange={(e) => setForm({ ...form, plan_id: e.target.value })}>
+                  <option value="">不关联（按标题自动匹配）</option>
+                  {plans
+                    .filter((pl) => !form.brand_id || !pl.brand_id || pl.brand_id === form.brand_id)
+                    .map((pl) => (
+                      <option key={pl.id} value={pl.id}>
+                        {pl.title || '未命名'}{pl.scheduled_at ? ` · ${new Date(pl.scheduled_at).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })}` : ''}
+                      </option>
+                    ))}
+                </select>
+              </Field>
+            </div>
+          )}
           {profile?.role === 'admin' && (
             <Field label="所属运营（管理员可指派）">
               <select className={inputClass} value={form.operator} onChange={(e) => setForm({ ...form, operator: e.target.value })}>
