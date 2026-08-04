@@ -19,6 +19,7 @@ export default function Brands() {
   const [accModal, setAccModal] = useState(null) // 绑定账号弹窗：存 brand
   const [accForm, setAccForm] = useState({ platform: 'youtube', profile_url: '', display_name: '' })
   const [syncing, setSyncing] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
 
   async function autoBind() {
     setSyncing(true)
@@ -45,6 +46,19 @@ export default function Brands() {
     setLoading(false)
   }
   useEffect(() => { load() }, [])
+
+  // 刷新：重新拉一次品牌/账号数据，图标转一下给反馈（至少转 500ms）
+  async function refresh() {
+    setRefreshing(true)
+    const started = Date.now()
+    try {
+      await load()
+    } finally {
+      const wait = 500 - (Date.now() - started)
+      if (wait > 0) await new Promise((r) => setTimeout(r, wait))
+      setRefreshing(false)
+    }
+  }
 
   const stats = useMemo(() => ({
     brands: brands.length,
@@ -118,7 +132,7 @@ export default function Brands() {
         subtitle="创建品牌、绑定官方社媒账号，点击「自动绑定社媒链接」自动抓取真实数据"
         actions={
           <>
-            <Button onClick={load}><RefreshCw size={16} /> 刷新</Button>
+            <Button onClick={refresh} disabled={refreshing}><RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} /> {refreshing ? '刷新中…' : '刷新'}</Button>
             <Button onClick={autoBind} disabled={syncing}><Link2 size={16} className={syncing ? 'animate-spin' : ''} /> {syncing ? '同步中…' : '自动绑定社媒链接'}</Button>
             <Button variant="primary" onClick={() => setModal(true)}><Plus size={16} /> 创建品牌</Button>
           </>
