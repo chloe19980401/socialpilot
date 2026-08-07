@@ -13,15 +13,15 @@ export function Button({ variant = 'default', className = '', children, ...rest 
   )
 }
 
-export function Tabs({ tabs, value, onChange }) {
+export function Tabs({ tabs, value, onChange, compact = false }) {
   return (
-    <div className="inline-flex rounded-xl bg-slate-100 p-1">
+    <div className={`${compact ? 'flex w-full' : 'inline-flex'} rounded-xl bg-slate-100 p-1`}>
       {tabs.map((t) => (
         <button
           key={t.value}
           type="button"
           onClick={() => onChange(t.value)}
-          className={`rounded-lg px-4 py-1.5 text-sm font-medium transition ${
+          className={`rounded-lg py-1.5 text-sm font-medium transition ${compact ? 'min-w-0 flex-1 px-1' : 'px-4'} ${
             value === t.value
               ? 'bg-white text-slate-900 shadow-sm'
               : 'text-slate-500 hover:text-slate-700'

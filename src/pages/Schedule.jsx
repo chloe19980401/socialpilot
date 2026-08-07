@@ -336,17 +336,17 @@ export default function Schedule() {
       />
 
       {/* 状态统计 */}
-      <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-5">
+      <div className="mb-3 grid grid-cols-5 gap-1.5 md:mb-4 md:gap-3">
         {['draft', 'pending', 'approved', 'published', 'rejected'].map((s) => {
           const meta = statusMeta(s)
           const n = baseFiltered.filter((p) => p.status === s).length
           return (
             <button key={s} onClick={() => setFStatus(fStatus === s ? 'all' : s)}
-              className={`flex items-center gap-3 rounded-2xl border p-3 text-left transition ${fStatus === s ? 'border-brand-500 ring-1 ring-brand-500' : 'border-slate-200 hover:border-slate-300'}`}>
-              <span className="h-2.5 w-2.5 rounded-full" style={{ background: meta.dot }} />
-              <span>
-                <span className="block text-xl font-bold text-slate-900">{n}</span>
-                <span className="block text-xs text-slate-500">{meta.label}</span>
+              className={`flex min-w-0 flex-col items-center gap-1 rounded-xl border px-1 py-2 text-center transition md:flex-row md:gap-3 md:rounded-2xl md:p-3 md:text-left ${fStatus === s ? 'border-brand-500 ring-1 ring-brand-500' : 'border-slate-200 hover:border-slate-300'}`}>
+              <span className="h-2 w-2 shrink-0 rounded-full md:h-2.5 md:w-2.5" style={{ background: meta.dot }} />
+              <span className="min-w-0">
+                <span className="block text-base font-bold leading-none text-slate-900 md:text-xl md:leading-normal">{n}</span>
+                <span className="mt-1 block truncate text-[10px] text-slate-500 md:mt-0 md:text-xs">{meta.label}</span>
               </span>
             </button>
           )
@@ -354,24 +354,25 @@ export default function Schedule() {
       </div>
 
       {/* 筛选 + 视图切换 */}
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <select className={inputClass + ' w-auto'} value={fBrand} onChange={(e) => setFBrand(e.target.value)}>
+      <div className="mb-3 grid grid-cols-3 gap-1.5 md:mb-4 md:flex md:flex-wrap md:items-center md:gap-2">
+        <select aria-label="筛选品牌" className={inputClass + ' min-w-0 px-2 text-xs md:w-auto md:px-3 md:text-sm'} value={fBrand} onChange={(e) => setFBrand(e.target.value)}>
           <option value="all">全部品牌</option>
           {brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
         </select>
-        <select className={inputClass + ' w-auto'} value={fPlatform} onChange={(e) => setFPlatform(e.target.value)}>
+        <select aria-label="筛选平台" className={inputClass + ' min-w-0 px-2 text-xs md:w-auto md:px-3 md:text-sm'} value={fPlatform} onChange={(e) => setFPlatform(e.target.value)}>
           <option value="all">全部平台</option>
           {Object.entries(PLATFORMS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
         </select>
-        <select className={inputClass + ' w-auto'} value={fAssignee} onChange={(e) => setFAssignee(e.target.value)}>
+        <select aria-label="筛选运营" className={inputClass + ' min-w-0 px-2 text-xs md:w-auto md:px-3 md:text-sm'} value={fAssignee} onChange={(e) => setFAssignee(e.target.value)}>
           <option value="all">全部运营</option>
           {people.map((p) => <option key={p.id} value={p.email}>{p.name || p.email}</option>)}
         </select>
         {fStatus !== 'all' && (
-          <button onClick={() => setFStatus('all')} className="text-xs text-slate-400 hover:text-slate-600">清除状态筛选 ✕</button>
+          <button onClick={() => setFStatus('all')} className="col-span-3 text-left text-xs text-slate-400 hover:text-slate-600 md:col-span-1">清除状态筛选 ✕</button>
         )}
-        <div className="ml-auto">
+        <div className="col-span-3 min-w-0 md:ml-auto">
           <Tabs
+            compact
             value={view} onChange={setView}
             tabs={[
               { value: 'kanban', label: '看板' },
@@ -583,7 +584,7 @@ function PlanMeta({ p, brandMap, accountMap }) {
 function KanbanView({ plans, onMove, brandMap, accountMap, ...actions }) {
   const [dragId, setDragId] = useState(null)
   return (
-    <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+    <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 md:mx-0 md:grid md:grid-cols-2 md:overflow-visible md:px-0 xl:grid-cols-4">
       {KANBAN_COLUMNS.map((col) => {
         const meta = statusMeta(col)
         const items = plans.filter((p) => p.status === col)
@@ -591,7 +592,7 @@ function KanbanView({ plans, onMove, brandMap, accountMap, ...actions }) {
           <div key={col}
             onDragOver={(e) => e.preventDefault()}
             onDrop={() => { if (dragId) onMove(dragId, col); setDragId(null) }}
-            className="rounded-2xl bg-slate-50/70 p-2">
+            className="w-[82vw] shrink-0 snap-start rounded-2xl bg-slate-50/70 p-2 md:w-auto">
             <div className="mb-2 flex items-center justify-between px-2 py-1">
               <span className="inline-flex items-center gap-2 text-sm font-semibold text-slate-700">
                 <span className="h-2.5 w-2.5 rounded-full" style={{ background: meta.dot }} />{meta.label}
@@ -620,7 +621,7 @@ function KanbanView({ plans, onMove, brandMap, accountMap, ...actions }) {
                   {!actions.readOnly && <div className="mt-2 border-t border-slate-100 pt-2"><PlanActions p={p} accountMap={accountMap} {...actions} /></div>}
                 </div>
               ))}
-              {items.length === 0 && <div className="px-2 py-6 text-center text-xs text-slate-300">{actions.readOnly ? '暂无' : '拖到这里'}</div>}
+              {items.length === 0 && <div className="px-2 py-4 text-center text-xs text-slate-300 md:py-6">{actions.readOnly ? '暂无' : '拖到这里'}</div>}
             </div>
           </div>
         )
