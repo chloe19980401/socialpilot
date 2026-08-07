@@ -64,9 +64,9 @@ export function Badge({ children, color = 'slate' }) {
 export function Modal({ open, onClose, title, children, footer }) {
   if (!open) return null
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4" onClick={onClose}>
       <div
-        className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl"
+        className="max-h-[92dvh] w-full max-w-lg overflow-y-auto rounded-t-2xl bg-white p-4 shadow-xl sm:rounded-2xl sm:p-6"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">
@@ -74,7 +74,7 @@ export function Modal({ open, onClose, title, children, footer }) {
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600">✕</button>
         </div>
         <div>{children}</div>
-        {footer && <div className="mt-6 flex justify-end gap-2">{footer}</div>}
+        {footer && <div className="mt-6 flex flex-wrap justify-end gap-2">{footer}</div>}
       </div>
     </div>
   )

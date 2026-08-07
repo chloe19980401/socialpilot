@@ -95,7 +95,7 @@ export default function Kol() {
             <StatCard icon={<Gift size={20} />} value={stats.freeSwap} label="免费置换" />
           </div>
 
-          <Card className="p-0">
+          <Card className="overflow-x-auto p-0">
             {filtered.length === 0 ? (
               <EmptyState icon={<Star size={28} />} title={loading ? '加载中…' : '暂无红人记录'} hint="点击「添加红人」录入合作红人" />
             ) : (
@@ -124,7 +124,7 @@ export default function Kol() {
           </Card>
         </>
       ) : (
-        <Card className="p-0">
+        <Card className="overflow-x-auto p-0">
           {reviews.length === 0 ? (
             <EmptyState icon={<FlaskConical size={28} />} title={loading ? '加载中…' : '暂无 Alpha 测评记录'} />
           ) : (

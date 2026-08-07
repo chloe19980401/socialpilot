@@ -33,7 +33,7 @@ export default function Login() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-100 p-4">
+    <div className="flex min-h-dvh items-center justify-center bg-slate-100 p-4">
       <div className="w-full max-w-md">
         <div className="mb-6 flex flex-col items-center">
           <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-900 text-cyan-400">
@@ -43,7 +43,7 @@ export default function Login() {
           <p className="mt-1 text-sm text-slate-400">社媒发布智能管理平台</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="rounded-2xl bg-white p-7 shadow-sm">
+        <form onSubmit={handleSubmit} className="rounded-2xl bg-white p-5 shadow-sm sm:p-7">
           <h2 className="text-lg font-bold text-slate-900">登录账号</h2>
           <p className="mt-1 text-sm text-slate-400">使用你的管理员或协作者账号登录</p>
 

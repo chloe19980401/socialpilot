@@ -7,6 +7,8 @@ const TITLES = {
   '/brands': '品牌管理',
   '/content': '内容中心',
   '/calendar': '日历',
+  '/schedule': '发布排期',
+  '/design': '设计台',
   '/logs': '红人管理',
   '/trends': '自建站看板',
   '/competitors': '竞品分析',
@@ -14,12 +16,14 @@ const TITLES = {
   '/settings': '设置',
 }
 
-export default function Topbar() {
+export default function Topbar({ onMenuClick }) {
   const { pathname } = useLocation()
   const { profile } = useAuth()
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-slate-200 bg-white/80 px-8 backdrop-blur">
-      <h2 className="text-lg font-semibold text-slate-900">{TITLES[pathname] || 'SocialPilot'}</h2>
+    <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center justify-between border-b border-slate-200 bg-white/90 px-4 backdrop-blur sm:h-16 sm:px-6 lg:px-8">
+      <div className="flex min-w-0 items-center gap-3">
+        <h2 className="truncate text-base font-semibold text-slate-900 sm:text-lg">{TITLES[pathname] || 'SocialPilot'}</h2>
+      </div>
       <div className="flex items-center gap-4">
         <button className="relative text-slate-400 hover:text-slate-600">
           <Bell size={20} />

@@ -13,6 +13,31 @@ body {
   color: #0f172a;
 }
 
+html, body, #root {
+  min-height: 100%;
+}
+
+button, a, input, select, textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (max-width: 639px) {
+  /* 双列表单和统计区在窄屏上保持可读。 */
+  form.grid-cols-2,
+  form .grid-cols-2 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* 没有显式滚动容器的传统表格也不会撑破页面。 */
+  table {
+    min-width: 640px;
+  }
+
+  .overflow-x-auto {
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
 * {
   box-sizing: border-box;
 }

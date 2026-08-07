@@ -26,7 +26,7 @@ const NAV = [
 // 设计师只看「设计台 + 发布排期」，其余角色看全部
 const DESIGNER_NAV = ['/design', '/schedule']
 
-export default function Sidebar() {
+export default function Sidebar({ open = false, onClose = () => {} }) {
   const { profile, signOut } = useAuth()
   const [accounts, setAccounts] = useState([])
   const [brandCount, setBrandCount] = useState(0)
@@ -45,7 +45,9 @@ export default function Sidebar() {
   }, [])
 
   return (
-    <aside className="flex h-screen w-64 shrink-0 flex-col border-r border-slate-200 bg-white">
+    <>
+    {open && <button aria-label="关闭导航" className="fixed inset-0 z-40 bg-slate-950/35 lg:hidden" onClick={onClose} />}
+    <aside className={`fixed inset-y-0 left-0 z-50 flex h-dvh w-72 shrink-0 flex-col border-r border-slate-200 bg-white shadow-xl transition-transform duration-200 lg:static lg:h-screen lg:w-64 lg:translate-x-0 lg:shadow-none ${open ? 'translate-x-0' : '-translate-x-full'}`}>
       {/* Logo */}
       <div className="flex items-center gap-3 border-b border-slate-100 px-5 py-4">
         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-purple-500 text-white">
@@ -81,6 +83,7 @@ export default function Sidebar() {
             key={to}
             to={to}
             end={end}
+            onClick={onClose}
             className={({ isActive }) =>
               `mb-0.5 flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition ${
                 isActive ? 'bg-brand-600 text-white' : 'text-slate-600 hover:bg-slate-100'
@@ -152,5 +155,6 @@ export default function Sidebar() {
         </button>
       </div>
     </aside>
+    </>
   )
 }
