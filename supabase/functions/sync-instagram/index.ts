@@ -32,6 +32,21 @@ async function ownStats(igUserId: string) {
   return { followers: Number(d.followers_count || 0), posts_count: Number(d.media_count || 0) }
 }
 
+async function ownMedia(igUserId: string) {
+  const fields = 'id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count'
+  const r = await fetch(`${GRAPH}/${igUserId}/media?fields=${encodeURIComponent(fields)}&limit=100&access_token=${TOKEN}`)
+  const d = await r.json()
+  if (d.error) throw new Error(d.error.message || 'Instagram media request failed')
+  return d.data ?? []
+}
+
+function instagramShortcode(url: string): string | null {
+  try {
+    const m = new URL(url).pathname.match(/\/(?:p|reel|tv)\/([^/]+)/)
+    return m?.[1] ?? null
+  } catch { return null }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
   if (!TOKEN || !IG_ID) return json({ error: '未配置 IG_ACCESS_TOKEN / IG_BUSINESS_ID' }, 400)
@@ -64,6 +79,29 @@ Deno.serve(async (req) => {
         if (!s) { failed++; continue }
         await db.from('accounts').update({ followers: s.followers, connected: true, last_synced_at: new Date().toISOString() }).eq('id', row.id)
         await snapshot(db, 'account', row.id, 'instagram', s)
+
+        // Match API media to manually entered rows by Graph media id,
+        // permalink or Instagram shortcode, then refresh their metrics.
+        const media = await ownMedia(row.external_id)
+        const { data: existingPosts } = await db.from('posts').select('id, url, external_id').ilike('platform', 'instagram')
+        for (const item of media) {
+          const apiCode = instagramShortcode(item.permalink || '')
+          const post = (existingPosts ?? []).find((p: any) =>
+            p.external_id === String(item.id) ||
+            (apiCode && (p.external_id === apiCode || instagramShortcode(p.url || '') === apiCode))
+          )
+          if (!post) continue
+          const upd: Record<string, unknown> = {
+            external_id: String(item.id),
+            likes: Number(item.like_count || 0),
+            comments: Number(item.comments_count || 0),
+            url: item.permalink || undefined,
+          }
+          if (item.caption) upd.title = item.caption.slice(0, 200)
+          if (item.timestamp) upd.published_at = item.timestamp
+          if (item.thumbnail_url || item.media_url) upd.thumbnail_url = item.thumbnail_url || item.media_url
+          await db.from('posts').update(upd).eq('id', post.id)
+        }
         processed++
       } catch (_e) { failed++ }
     }

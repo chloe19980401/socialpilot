@@ -136,7 +136,13 @@ Deno.serve(async (req) => {
         shares: Number(v.share_count || 0),
         status: 'published',
       }
-      const { error } = await db.from('posts').upsert(rec, { onConflict: 'account_id,external_id' })
+      // Posts entered manually usually have no account_id. Update the existing
+      // row by platform + external_id first instead of creating a second row.
+      const { data: existing } = await db.from('posts').select('id')
+        .ilike('platform', 'tiktok').eq('external_id', String(v.id)).maybeSingle()
+      const { error } = existing
+        ? await db.from('posts').update(rec).eq('id', existing.id)
+        : await db.from('posts').upsert(rec, { onConflict: 'account_id,external_id' })
       if (!error) postsUpserted++
     }
   } catch (_e) {
