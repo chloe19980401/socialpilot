@@ -83,6 +83,11 @@ async function ownVideos(TOKEN: string, maxTotal = 60) {
   return videos.slice(0, maxTotal)
 }
 
+function tiktokId(url: string): string | null {
+  try { return new URL(url).pathname.match(/\/(?:video|photo)\/(\d+)/)?.[1] ?? null }
+  catch { return null }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
   const { scope = 'accounts' } = await req.json().catch(() => ({}))
@@ -120,6 +125,7 @@ Deno.serve(async (req) => {
     }
 
     const videos = await ownVideos(TOKEN)
+    const { data: existingPosts } = await db.from('posts').select('id, url, external_id, account_id').ilike('platform', 'tiktok')
     for (const v of videos) {
       const rec = {
         account_id: row.id,
@@ -136,14 +142,24 @@ Deno.serve(async (req) => {
         shares: Number(v.share_count || 0),
         status: 'published',
       }
-      // Posts entered manually usually have no account_id. Update the existing
-      // row by platform + external_id first instead of creating a second row.
-      const { data: existing } = await db.from('posts').select('id')
-        .ilike('platform', 'tiktok').eq('external_id', String(v.id)).maybeSingle()
+      const vid = String(v.id)
+      // Prefer the manually entered row whose /video/ or /photo/ URL contains
+      // this id. Older UI versions left external_id empty for TikTok photos.
+      const urlMatch = (existingPosts ?? []).find((p: any) => tiktokId(p.url || '') === vid)
+      const idMatches = (existingPosts ?? []).filter((p: any) => p.external_id === vid)
+      const existing = urlMatch || idMatches[0]
+      // Free the unique (account_id, external_id) key before moving the API
+      // metrics onto a manually entered /photo/ row.
+      const duplicateIds = urlMatch
+        ? idMatches.filter((p: any) => p.id !== urlMatch.id && p.account_id === row.id).map((p: any) => p.id)
+        : []
+      if (duplicateIds.length) await db.from('posts').delete().in('id', duplicateIds)
       const { error } = existing
         ? await db.from('posts').update(rec).eq('id', existing.id)
         : await db.from('posts').upsert(rec, { onConflict: 'account_id,external_id' })
-      if (!error) postsUpserted++
+      if (!error) {
+        postsUpserted++
+      }
     }
   } catch (_e) {
     failed++

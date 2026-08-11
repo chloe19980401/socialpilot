@@ -41,7 +41,7 @@ function parseExternalId(url, platform) {
   try {
     const u = new URL(url)
     if (platform === 'youtube') return u.searchParams.get('v') || u.pathname.split('/').filter(Boolean).pop() || null
-    if (platform === 'tiktok') { const m = u.pathname.match(/\/video\/(\d+)/); return m ? m[1] : null }
+    if (platform === 'tiktok') { const m = u.pathname.match(/\/(?:video|photo)\/(\d+)/); return m ? m[1] : null }
     if (platform === 'instagram') { const m = u.pathname.match(/\/(?:p|reel|tv)\/([^/]+)/); return m ? m[1] : null }
     if (platform === 'facebook') { const m = u.pathname.match(/\/(?:posts|videos|photos)\/([^/]+)/); return m ? m[1] : null }
   } catch { /* ignore */ }
