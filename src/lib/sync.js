@@ -8,6 +8,19 @@ export async function triggerSync(platform, scope = 'all') {
     body: { scope },
   })
   if (error) throw error
+  // Edge Functions may return a JSON error with a successful HTTP response.
+  // Treat it as a failure so the UI does not report a false successful sync.
+  if (data?.error) throw new Error(data.error)
+  return data
+}
+
+// Refresh metrics for posts already stored in the content center.
+export async function syncPostMetrics() {
+  const { data, error } = await supabase.functions.invoke('sync-post-metrics', {
+    body: {},
+  })
+  if (error) throw error
+  if (data?.error) throw new Error(data.error)
   return data
 }
 

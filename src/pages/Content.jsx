@@ -7,7 +7,7 @@ import {
   Share2, Bookmark, RefreshCcw, Pencil, Trash2, Plus,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import { syncAll } from '../lib/sync'
+import { syncAll, syncPostMetrics } from '../lib/sync'
 import { Card, StatCard } from '../components/ui/Card'
 import PageHeader from '../components/ui/PageHeader'
 import { Button, Tabs, Modal, Field, inputClass, Badge, EmptyState } from '../components/ui/Common'
@@ -157,8 +157,14 @@ export default function Content() {
   async function syncPosts() {
     setSyncing(true)
     try {
-      const res = await syncAll('accounts')
+      // Account sync refreshes TikTok/Instagram/Facebook; YouTube post metrics
+      // are handled by the dedicated function and were previously never called.
+      const [res, postMetrics] = await Promise.all([
+        syncAll('accounts'),
+        syncPostMetrics().catch((e) => ({ error: String(e.message || e) })),
+      ])
       const failed = res.filter((r) => r.error)
+      if (postMetrics.error) failed.push({ platform: 'youtube-posts', error: postMetrics.error })
       if (failed.length) alert('部分平台未配置或失败：\n' + failed.map((f) => `${f.platform}: ${f.error}`).join('\n'))
       await load()
     } catch (e) { alert('同步失败：' + (e.message || e)) } finally { setSyncing(false) }
