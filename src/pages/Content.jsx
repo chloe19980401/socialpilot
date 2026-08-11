@@ -74,7 +74,8 @@ export default function Content() {
   const [modal, setModal] = useState(false)
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState(emptyPost)
-  const { profile } = useAuth()
+  const { profile, user } = useAuth()
+  const currentUserEmail = profile?.email || user?.email || ''
 
   async function load() {
     setLoading(true)
@@ -170,7 +171,7 @@ export default function Content() {
     } catch (e) { alert('同步失败：' + (e.message || e)) } finally { setSyncing(false) }
   }
 
-  function openNew() { setEditing(null); setForm({ ...emptyPost, brand_id: brands[0]?.id || '', operator: profile?.email || '' }); setModal(true) }
+  function openNew() { setEditing(null); setForm({ ...emptyPost, brand_id: brands[0]?.id || '', operator: currentUserEmail }); setModal(true) }
   function openEdit(p) {
     setEditing(p)
     setForm({
@@ -231,7 +232,10 @@ export default function Content() {
   async function savePost(e) {
     e.preventDefault()
     const de = profiles.find((x) => x.email === form.designer)
-    const op = profiles.find((x) => x.email === form.operator)
+    // A user can open the modal before their profile row finishes loading.
+    // For new posts, always fall back to the authenticated user's email.
+    const operatorEmail = form.operator || (!editing ? currentUserEmail : '')
+    const op = profiles.find((x) => x.email === operatorEmail)
     const platform = detectPlatform(form.url) || form.platform
     const row = {
       url: form.url || null,
@@ -239,8 +243,8 @@ export default function Content() {
       title: form.title || null, platform, brand_id: form.brand_id || null,
       published_at: form.published_at || null,
       // 运营：新建默认当前登录账号；管理员可在编辑里改成任意成员（含给同步来的无运营帖子指派）
-      operator_email: form.operator || null,
-      operator_name: op?.name || (form.operator ? form.operator.split('@')[0] : null),
+      operator_email: operatorEmail || null,
+      operator_name: op?.name || profile?.name || (operatorEmail ? operatorEmail.split('@')[0] : null),
       designer_email: form.designer || null, designer_name: de?.name || null,
       thumbnail_url: form.thumbnail_url || null,
     }
