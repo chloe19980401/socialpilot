@@ -8,6 +8,7 @@ import { Card, StatCard } from '../components/ui/Card'
 import PageHeader from '../components/ui/PageHeader'
 import { Button, Tabs, EmptyState, Badge, Modal, Field, inputClass } from '../components/ui/Common'
 import { percent, money, compactEN } from '../lib/format'
+import { sameOperator } from '../lib/ownership'
 
 // KPI 指标：实际值自动从内容中心（posts）按运营 + 月份计算
 const METRICS = ['发帖数', '总播放量', '互动率']
@@ -37,8 +38,8 @@ export default function Performance() {
   const [profiles, setProfiles] = useState([])
   const [orders, setOrders] = useState([])
   const [plans, setPlans] = useState([])
-  // 默认展示下个月（当前 KPI 考核月，如 8 月），而非本月
-  const [month, setMonth] = useState(nextMonth(`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`))
+  // 默认展示当前月，避免本月已发布帖子被下个月筛选条件排除。
+  const [month, setMonth] = useState(`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`)
   const [salesBy, setSalesBy] = useState('operator')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -52,7 +53,7 @@ export default function Performance() {
       supabase.from('kpi_goals').select('*'),
       supabase.from('profiles').select('*').order('name'),
       supabase.from('store_orders').select('*'),
-      supabase.from('content_plans').select('id, assignee_email, assignee_name, scheduled_at, overdue, overdue_cleared'),
+      supabase.from('content_plans').select('id, post_id, assignee_email, assignee_name, scheduled_at, overdue, overdue_cleared'),
     ])
     setPosts(ps || []); setGoals(gs || []); setProfiles(pf || []); setOrders(od || []); setPlans(pl || [])
     setLoading(false)
@@ -63,7 +64,7 @@ export default function Performance() {
 
   // 某运营在某月的内容实际数据
   function contentActual(email, metric, mKey) {
-    const mine = posts.filter((p) => (p.operator_email === email) && ym(p.published_at) === mKey)
+    const mine = posts.filter((p) => sameOperator(p, email, profiles, plans) && ym(p.published_at) === mKey)
     if (metric === '发帖数') return mine.length
     if (metric === '总播放量') return mine.reduce((s, p) => s + (p.views || 0), 0)
     if (metric === '互动率') {
@@ -81,7 +82,7 @@ export default function Performance() {
       const raw = g.target ? (actual / g.target) * 100 : 0
       return { ...g, actual, raw, rate: Math.min(100, raw) }
     }),
-    [goals, month, posts]
+    [goals, month, posts, profiles, plans]
   )
 
   // 按运营分组（看板卡片用）
@@ -158,7 +159,7 @@ export default function Performance() {
     const names = {}
     ops.forEach((op) => { names[op] = profiles.find((p) => p.email === op)?.name || op })
     return { rows, ops, names }
-  }, [goals, months, month, posts, profiles])
+  }, [goals, months, month, posts, profiles, plans])
 
   async function syncToNext() {
     const nm = nextMonth(month)

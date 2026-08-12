@@ -14,6 +14,7 @@ import { Button, Tabs, Modal, Field, inputClass, Badge, EmptyState } from '../co
 import { platformMeta, PLATFORMS } from '../lib/platforms'
 import { compactEN, formatDate } from '../lib/format'
 import { useAuth } from '../context/AuthContext'
+import { resolvePostOperator } from '../lib/ownership'
 
 // 从链接自动识别平台
 function detectPlatform(url) {
@@ -64,6 +65,7 @@ export default function Content() {
   const [brands, setBrands] = useState([])
   const [profiles, setProfiles] = useState([])
   const [plans, setPlans] = useState([])
+  const [ownershipPlans, setOwnershipPlans] = useState([])
   const [brandTab, setBrandTab] = useState('all')
   const [platformTab, setPlatformTab] = useState('all')
   const [operatorTab, setOperatorTab] = useState('all')
@@ -83,13 +85,14 @@ export default function Content() {
       supabase.from('posts').select('*').order('published_at', { ascending: false, nullsFirst: false }),
       supabase.from('brands').select('*'),
       supabase.from('profiles').select('*').order('name'),
-      supabase.from('content_plans').select('id, title, scheduled_at, brand_id, status')
-        .eq('status', 'approved').order('scheduled_at', { ascending: true, nullsFirst: false }),
+      supabase.from('content_plans').select('id, title, scheduled_at, brand_id, status, post_id, assignee_email, assignee_name')
+        .order('scheduled_at', { ascending: true, nullsFirst: false }),
     ])
     setPosts(ps || [])
     setBrands(br || [])
     setProfiles(pf || [])
-    setPlans(pl || [])
+    setOwnershipPlans(pl || [])
+    setPlans((pl || []).filter((p) => p.status === 'approved'))
     setLoading(false)
   }
   useEffect(() => { load() }, [])
@@ -107,18 +110,18 @@ export default function Content() {
   const listOperators = useMemo(() => {
     const map = new Map()
     filtered.forEach((p) => {
-      const key = p.operator_email || '__none__'
-      if (!map.has(key)) map.set(key, p.operator_name || (p.operator_email ? p.operator_email.split('@')[0] : '未分配'))
+      const owner = resolvePostOperator(p, profiles, ownershipPlans)
+      if (!map.has(owner.key)) map.set(owner.key, owner.name)
     })
     return [['all', '全部运营'], ...Array.from(map.entries())]
-  }, [filtered])
+  }, [filtered, profiles, ownershipPlans])
   const tablePosts = useMemo(
     () => filtered.filter((p) => {
       const pfOk = platformTab === 'all' || (p.platform || '').toLowerCase() === platformTab
-      const opOk = operatorTab === 'all' || (p.operator_email || '__none__') === operatorTab
+      const opOk = operatorTab === 'all' || resolvePostOperator(p, profiles, ownershipPlans).key === operatorTab
       return pfOk && opOk
     }),
-    [filtered, platformTab, operatorTab]
+    [filtered, platformTab, operatorTab, profiles, ownershipPlans]
   )
 
   const totals = useMemo(() => {
@@ -147,13 +150,14 @@ export default function Content() {
     const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - range)
     const map = {}
     filtered.filter((p) => !p.published_at || new Date(p.published_at) >= cutoff).forEach((p) => {
-      const key = p.operator_email || p.operator_name || '未分配'
-      if (!map[key]) map[key] = { name: p.operator_name || key.split('@')[0], email: p.operator_email || '', count: 0, views: 0, likes: 0, comments: 0, shares: 0, saves: 0 }
+      const owner = resolvePostOperator(p, profiles, ownershipPlans)
+      const key = owner.key
+      if (!map[key]) map[key] = { name: owner.name, email: owner.email, count: 0, views: 0, likes: 0, comments: 0, shares: 0, saves: 0 }
       map[key].count += 1; map[key].views += p.views || 0; map[key].likes += p.likes || 0
       map[key].comments += p.comments || 0; map[key].shares += p.shares || 0; map[key].saves += p.saves || 0
     })
     return Object.values(map)
-  }, [filtered, range])
+  }, [filtered, range, profiles, ownershipPlans])
 
   async function syncPosts() {
     setSyncing(true)
@@ -173,11 +177,12 @@ export default function Content() {
 
   function openNew() { setEditing(null); setForm({ ...emptyPost, brand_id: brands[0]?.id || '', operator: currentUserEmail }); setModal(true) }
   function openEdit(p) {
+    const owner = resolvePostOperator(p, profiles, ownershipPlans)
     setEditing(p)
     setForm({
       url: p.url || '', title: p.title || '', platform: p.platform || 'instagram', brand_id: p.brand_id || '',
       published_at: p.published_at ? p.published_at.slice(0, 10) : '',
-      operator: p.operator_email || '', designer: p.designer_email || '', thumbnail_url: p.thumbnail_url || '',
+      operator: owner.email || '', designer: p.designer_email || '', thumbnail_url: p.thumbnail_url || '',
     })
     setModal(true)
   }
@@ -194,7 +199,7 @@ export default function Content() {
     // 与手动发布一致：过了计划时间才发的记一次逾期
     const late = (p.scheduled_at && Date.now() > new Date(p.scheduled_at).getTime() && !p.overdue_cleared) ? { overdue: true } : {}
     if (ids.length === 0) {
-      await supabase.from('content_plans').update({ status: 'published', ...late }).eq('id', p.id)
+      await supabase.from('content_plans').update({ status: 'published', post_id: row.id || p.post_id || null, ...late }).eq('id', p.id)
       return
     }
     const target = ids.find((id) => accPlat[id] === row.platform && !pub.includes(id))
@@ -202,6 +207,7 @@ export default function Content() {
     const nextPub = [...pub, target]
     const done = ids.every((id) => nextPub.includes(id))
     await supabase.from('content_plans').update({
+      post_id: row.id || p.post_id || null,
       published_account_ids: nextPub,
       ...(done ? { status: 'published' } : {}),
       ...late,
@@ -234,7 +240,8 @@ export default function Content() {
     const de = profiles.find((x) => x.email === form.designer)
     // A user can open the modal before their profile row finishes loading.
     // For new posts, always fall back to the authenticated user's email.
-    const operatorEmail = form.operator || (!editing ? currentUserEmail : '')
+    const linkedPlan = form.plan_id ? ownershipPlans.find((p) => p.id === form.plan_id) : null
+    const operatorEmail = form.operator || linkedPlan?.assignee_email || (!editing ? currentUserEmail : '')
     const op = profiles.find((x) => x.email === operatorEmail)
     const platform = detectPlatform(form.url) || form.platform
     const row = {
@@ -244,7 +251,7 @@ export default function Content() {
       published_at: form.published_at || null,
       // 运营：新建默认当前登录账号；管理员可在编辑里改成任意成员（含给同步来的无运营帖子指派）
       operator_email: operatorEmail || null,
-      operator_name: op?.name || profile?.name || (operatorEmail ? operatorEmail.split('@')[0] : null),
+      operator_name: op?.name || linkedPlan?.assignee_name || profile?.name || (operatorEmail ? operatorEmail.split('@')[0] : null),
       designer_email: form.designer || null, designer_name: de?.name || null,
       thumbnail_url: form.thumbnail_url || null,
     }
@@ -254,11 +261,14 @@ export default function Content() {
       // 防重复：同一条链接（标准化后）已存在就更新那条，而不是新增
       const nu = normUrl(form.url)
       const dup = nu ? posts.find((p) => normUrl(p.url) === nu) : null
+      let savedPost
       if (dup) {
-        await supabase.from('posts').update(row).eq('id', dup.id)
+        const { data } = await supabase.from('posts').update(row).eq('id', dup.id).select().single()
+        savedPost = data || { ...dup, ...row }
         alert('该链接的帖子已存在，已更新为你填写的信息（未新增重复帖子）。')
       } else {
-        await supabase.from('posts').insert(row)
+        const { data } = await supabase.from('posts').insert(row).select().single()
+        savedPost = data || row
         // 新帖上传 → 即时发飞书群提醒（失败不影响上传）
         supabase.functions.invoke('feishu-notify', {
           body: {
@@ -272,8 +282,8 @@ export default function Content() {
         }).catch(() => {})
       }
       // 回填排期「已发布」：选了「关联排期」就精确回填那条，否则按标题自动匹配
-      if (form.plan_id) await publishLinkedPlan(form.plan_id, row)
-      else await autoMatchPublish(row)
+      if (form.plan_id) await publishLinkedPlan(form.plan_id, savedPost)
+      else await autoMatchPublish(savedPost)
     }
     setModal(false)
     load()
@@ -362,6 +372,7 @@ export default function Content() {
               <tbody>
                 {tablePosts.map((p) => {
                   const meta = platformMeta(p.platform); const { Icon } = meta
+                  const owner = resolvePostOperator(p, profiles, ownershipPlans)
                   return (
                     <tr key={p.id} className="border-b border-slate-50 hover:bg-slate-50">
                       <td className="max-w-[220px] truncate px-5 py-3 font-medium">
@@ -370,7 +381,7 @@ export default function Content() {
                           : <span className="text-slate-700">{p.title || '（无标题）'}</span>}
                       </td>
                       <td className="px-3 py-3"><Icon size={16} style={{ color: meta.color }} /></td>
-                      <td className="px-3 py-3">{p.operator_name ? <Badge color="blue">{p.operator_name}</Badge> : <span className="text-slate-300">—</span>}</td>
+                      <td className="px-3 py-3">{owner.key !== '__none__' ? <Badge color="blue">{owner.name}</Badge> : <span className="text-slate-300">—</span>}</td>
                       <td className="px-3 py-3">{p.designer_name ? <Badge color="green">{p.designer_name}</Badge> : <span className="text-slate-300">—</span>}</td>
                       <td className="px-3 py-3 text-slate-500">{compactEN(p.likes)}</td>
                       <td className="px-3 py-3 text-slate-500">{compactEN(p.views)}</td>
