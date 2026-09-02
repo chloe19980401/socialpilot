@@ -26,7 +26,9 @@ export default function Login() {
     const { error } = await signIn(toEmail(email), password)
     setLoading(false)
     if (error) {
-      setError('登录失败：' + error.message)
+      setError(error.code === 'user_banned' || /banned/i.test(error.message)
+        ? '该账号已被管理员禁用，请联系管理员。'
+        : '登录失败：' + error.message)
       return
     }
     navigate('/')

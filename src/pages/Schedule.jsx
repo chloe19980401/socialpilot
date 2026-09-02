@@ -253,6 +253,10 @@ export default function Schedule() {
 
   function submitReview(p) { patch(p.id, { status: 'pending' }) }
   function approve(p) {
+    const isOwnPlan = profile?.role === 'operator' &&
+      String(p.assignee_email || '').trim().toLowerCase() === String(profile?.email || '').trim().toLowerCase()
+    if (!isAdmin && !isOwnPlan) { alert('只能审核自己负责的帖子'); return }
+    if (!isAdmin && !confirm(`确认「${p.title || '未命名'}」已经给管理员看过，并自行审核通过？`)) return
     patch(p.id, { status: 'approved', reviewed_by: profile?.email || null, reviewed_at: new Date().toISOString(), review_note: null })
   }
   function doReject() {
@@ -311,7 +315,9 @@ export default function Schedule() {
     if (readOnly) return
     const p = plans.find((x) => x.id === id)
     if (!p || p.status === status) return
-    if (['approved', 'rejected'].includes(status) && !isAdmin) { alert('仅管理员可审批'); return }
+    const canSelfApprove = status === 'approved' && profile?.role === 'operator' &&
+      String(p.assignee_email || '').trim().toLowerCase() === String(profile?.email || '').trim().toLowerCase()
+    if (['approved', 'rejected'].includes(status) && !isAdmin && !canSelfApprove) { alert('只能审核自己负责的帖子'); return }
     if (status === 'published') { markPublished(p); return }
     if (status === 'approved') { approve(p); return }
     patch(id, { status })
@@ -514,10 +520,12 @@ export default function Schedule() {
 }
 
 /* ---------------- 排期卡片操作区 ---------------- */
-function PlanActions({ p, isAdmin, accountMap, openEdit, remove, submitReview, approve, reject, reopen, markPublished, markAccountPublished, clearOverdue }) {
+function PlanActions({ p, isAdmin, profile, accountMap, openEdit, remove, submitReview, approve, reject, reopen, markPublished, markAccountPublished, clearOverdue }) {
   const iconBtn = 'inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium transition'
   const accs = planAccountIds(p).map((id) => accountMap?.[id]).filter(Boolean)
   const pub = publishedIds(p)
+  const canSelfApprove = profile?.role === 'operator' &&
+    String(p.assignee_email || '').trim().toLowerCase() === String(profile?.email || '').trim().toLowerCase()
   return (
     <div className="space-y-1.5">
       {/* 审核通过后：逐账号发布进度 */}
@@ -545,7 +553,12 @@ function PlanActions({ p, isAdmin, accountMap, openEdit, remove, submitReview, a
             <button className={`${iconBtn} bg-red-50 text-red-600 hover:bg-red-100`} onClick={() => reject(p)}><X size={12} /> 驳回</button>
           </>
         )}
-        {p.status === 'pending' && !isAdmin && <Badge color="orange">等待管理员审核</Badge>}
+        {p.status === 'pending' && !isAdmin && canSelfApprove && (
+          <button className={`${iconBtn} bg-green-50 text-green-600 hover:bg-green-100`} onClick={() => approve(p)} title="仅在已经给管理员看过后点击">
+            <Check size={12} /> 已给管理员看过，审核通过
+          </button>
+        )}
+        {p.status === 'pending' && !isAdmin && !canSelfApprove && <Badge color="orange">等待负责人审核</Badge>}
         {p.status === 'approved' && (
           <button className={`${iconBtn} bg-brand-50 text-brand-700 hover:bg-brand-100`} onClick={() => markPublished(p)}><Rocket size={12} /> {accs.length > 1 ? '全部标记已发布' : '标记已发布'}</button>
         )}

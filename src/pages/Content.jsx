@@ -59,6 +59,7 @@ const METRICS = [
 ]
 const RANGES = [{ value: 7, label: '近7天' }, { value: 14, label: '近14天' }, { value: 30, label: '近30天' }]
 const emptyPost = { url: '', title: '', platform: 'instagram', brand_id: '', published_at: '', operator: '', designer: '', thumbnail_url: '', plan_id: '' }
+const metricValue = (value) => value == null ? '—' : compactEN(value)
 
 export default function Content() {
   const [posts, setPosts] = useState([])
@@ -384,7 +385,7 @@ export default function Content() {
                       <td className="px-3 py-3">{owner.key !== '__none__' ? <Badge color="blue">{owner.name}</Badge> : <span className="text-slate-300">—</span>}</td>
                       <td className="px-3 py-3">{p.designer_name ? <Badge color="green">{p.designer_name}</Badge> : <span className="text-slate-300">—</span>}</td>
                       <td className="px-3 py-3 text-slate-500">{compactEN(p.likes)}</td>
-                      <td className="px-3 py-3 text-slate-500">{compactEN(p.views)}</td>
+                      <td className="px-3 py-3 text-slate-500">{metricValue(p.views)}</td>
                       <td className="px-3 py-3 text-slate-500">{compactEN(p.comments)}</td>
                       <td className="px-3 py-3 text-slate-500">{compactEN(p.shares)}</td>
                       <td className="px-3 py-3 text-slate-500">{engRate(p) == null ? '—' : (engRate(p) * 100).toFixed(1) + '%'}</td>

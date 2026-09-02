@@ -10,6 +10,7 @@ create table if not exists public.profiles (
   email text,
   name text,
   role text not null default 'operator',      -- admin | operator
+  disabled_at timestamptz,
   created_at timestamptz not null default now()
 );
 

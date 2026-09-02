@@ -15,6 +15,29 @@ function ids(value: string): string[] {
   return [...new Set(found)]
 }
 
+function canonicalUrl(html: string): string {
+  const match = html.match(/<meta[^>]+(?:property|name)=["'](?:og:url|twitter:url)["'][^>]+content=["']([^"']+)["']/i)
+    || html.match(/<link[^>]+rel=["']canonical["'][^>]+href=["']([^"']+)["']/i)
+  return match?.[1]?.replace(/&amp;/g, '&') || ''
+}
+
+async function candidatesFor(post: any): Promise<string[]> {
+  const direct = ids(`${post.external_id || ''} ${post.url || ''}`)
+  if (direct.length || !post.url) return direct
+  try {
+    const r = await fetch(post.url.trim(), {
+      redirect: 'follow',
+      headers: { 'User-Agent': 'Mozilla/5.0' },
+    })
+    const finalIds = ids(r.url)
+    if (finalIds.length) return finalIds
+    const canonical = canonicalUrl(await r.text())
+    return ids(canonical)
+  } catch {
+    return []
+  }
+}
+
 async function graphObject(id: string) {
   const common = 'id,created_time,likes.limit(0).summary(true),comments.limit(0).summary(true)'
   const fieldSets = [
@@ -47,15 +70,27 @@ Deno.serve(async (req) => {
   // The current Meta token can read known Page objects but lacks
   // pages_read_engagement for /PAGE/feed. Query each stored object id directly.
   for (const post of posts ?? []) {
-    const candidates = ids(post.external_id || post.url)
-    if (!candidates.length) continue
+    const candidates = await candidatesFor(post)
+    if (!candidates.length) {
+      failed++
+      errors.push(`${post.id}: 无法从 Facebook 分享链接解析帖子 ID`)
+      await db.from('posts').update({ views: null }).eq('id', post.id)
+      continue
+    }
     let item: any = null
     let lastError = ''
     for (const id of candidates) {
       try { item = await graphObject(id); break }
       catch (e) { lastError = String(e?.message || e) }
     }
-    if (!item) { failed++; if (lastError) errors.push(`${post.id}: ${lastError}`); continue }
+    if (!item) {
+      failed++
+      if (lastError) errors.push(`${post.id}: ${lastError}`)
+      // A share URL may be valid in the browser but not resolvable by the Graph API.
+      // Do not present an unknown playback count as a confirmed zero.
+      await db.from('posts').update({ views: null }).eq('id', post.id)
+      continue
+    }
     await db.from('posts').update({
       external_id: String(item.id), url: item.permalink_url || item.link || post.url || undefined,
       title: (item.message || item.title || item.description || item.name)?.slice(0, 200) || undefined,
@@ -63,7 +98,9 @@ Deno.serve(async (req) => {
       likes: Number(item.likes?.summary?.total_count || 0),
       comments: Number(item.comments?.summary?.total_count || 0),
       shares: Number(item.shares?.count || 0),
-      ...(item.views != null ? { views: Number(item.views || 0) } : {}),
+      // Photos/text posts do not have a playback metric. Store null instead of
+      // leaving a misleading zero from the database default.
+      views: item.views != null ? Number(item.views || 0) : null,
     }).eq('id', post.id)
     postsRefreshed++
   }

@@ -33,11 +33,42 @@ async function ownStats(igUserId: string) {
 }
 
 async function ownMedia(igUserId: string) {
-  const fields = 'id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count'
+  const fields = 'id,caption,media_type,media_product_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count'
   const r = await fetch(`${GRAPH}/${igUserId}/media?fields=${encodeURIComponent(fields)}&limit=100&access_token=${TOKEN}`)
   const d = await r.json()
   if (d.error) throw new Error(d.error.message || 'Instagram media request failed')
   return d.data ?? []
+}
+
+function insightNumber(payload: any): number | null {
+  const row = payload?.data?.[0]
+  const raw = row?.total_value?.value ?? row?.values?.[0]?.value
+  const value = Number(raw)
+  return Number.isFinite(value) ? value : null
+}
+
+// Meta has renamed the Reels playback metric across Graph API versions.
+// Query candidates one by one so one unsupported name does not hide all data.
+async function firstInsight(mediaId: string, metrics: string[]): Promise<number | null> {
+  for (const metric of metrics) {
+    const r = await fetch(`${GRAPH}/${mediaId}/insights?metric=${encodeURIComponent(metric)}&access_token=${TOKEN}`)
+    const d = await r.json()
+    if (!d.error) {
+      const value = insightNumber(d)
+      if (value != null) return value
+    }
+  }
+  return null
+}
+
+async function mediaInsights(item: any) {
+  const playable = item.media_type === 'VIDEO' || item.media_product_type === 'REELS'
+  const [views, shares, saves] = await Promise.all([
+    playable ? firstInsight(String(item.id), ['views', 'plays', 'video_views']) : Promise.resolve(null),
+    firstInsight(String(item.id), ['shares']),
+    firstInsight(String(item.id), ['saved']),
+  ])
+  return { playable, views, shares, saves }
 }
 
 function instagramShortcode(url: string): string | null {
@@ -91,12 +122,18 @@ Deno.serve(async (req) => {
             (apiCode && (p.external_id === apiCode || instagramShortcode(p.url || '') === apiCode))
           )
           if (!post) continue
+          const insights = await mediaInsights(item)
           const upd: Record<string, unknown> = {
             external_id: String(item.id),
             likes: Number(item.like_count || 0),
             comments: Number(item.comments_count || 0),
+            // null means this post has no playback metric or Meta did not return one.
+            // It must not be presented as a real zero.
+            views: insights.views,
             url: item.permalink || undefined,
           }
+          if (insights.shares != null) upd.shares = insights.shares
+          if (insights.saves != null) upd.saves = insights.saves
           if (item.caption) upd.title = item.caption.slice(0, 200)
           if (item.timestamp) upd.published_at = item.timestamp
           if (item.thumbnail_url || item.media_url) upd.thumbnail_url = item.thumbnail_url || item.media_url

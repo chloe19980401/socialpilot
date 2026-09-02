@@ -141,19 +141,16 @@ Deno.serve(async (req) => {
         comments: Number(v.comment_count || 0),
         shares: Number(v.share_count || 0),
         status: 'published',
+        ...(v.share_url ? { url: v.share_url } : {}),
       }
       const vid = String(v.id)
       // Prefer the manually entered row whose /video/ or /photo/ URL contains
       // this id. Older UI versions left external_id empty for TikTok photos.
       const urlMatch = (existingPosts ?? []).find((p: any) => tiktokId(p.url || '') === vid)
       const idMatches = (existingPosts ?? []).filter((p: any) => p.external_id === vid)
-      const existing = urlMatch || idMatches[0]
-      // Free the unique (account_id, external_id) key before moving the API
-      // metrics onto a manually entered /photo/ row.
-      const duplicateIds = urlMatch
-        ? idMatches.filter((p: any) => p.id !== urlMatch.id && p.account_id === row.id).map((p: any) => p.id)
-        : []
-      if (duplicateIds.length) await db.from('posts').delete().in('id', duplicateIds)
+      // Never delete content during metrics sync. Prefer the canonical API row
+      // when both an imported row and a manually entered URL exist.
+      const existing = idMatches[0] || urlMatch
       const { error } = existing
         ? await db.from('posts').update(rec).eq('id', existing.id)
         : await db.from('posts').upsert(rec, { onConflict: 'account_id,external_id' })

@@ -30,15 +30,18 @@ export function AuthProvider({ children }) {
       .select('*')
       .eq('id', session.user.id)
       .maybeSingle()
-      .then(({ data }) => {
-        setProfile(
-          data || {
-            id: session.user.id,
-            email: session.user.email,
-            name: session.user.email?.split('@')[0],
-            role: 'admin',
-          }
-        )
+      .then(async ({ data, error }) => {
+        if (data?.disabled_at) {
+          setProfile(null)
+          await supabase.auth.signOut()
+          return
+        }
+        setProfile(data || (error ? null : {
+          id: session.user.id,
+          email: session.user.email,
+          name: session.user.email?.split('@')[0],
+          role: 'operator',
+        }))
       })
   }, [session])
 

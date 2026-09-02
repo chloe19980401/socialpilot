@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Users, Bell, Send, KeyRound, UserPlus, Eye, EyeOff } from 'lucide-react'
+import { Users, Bell, Send, KeyRound, UserPlus, Eye, EyeOff, Ban, CircleCheck } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { Card } from '../components/ui/Card'
 import PageHeader from '../components/ui/PageHeader'
@@ -27,6 +27,8 @@ export default function Settings() {
   const toggleReveal = (id) => setRevealed((r) => ({ ...r, [id]: !r[id] }))
   const [modal, setModal] = useState(false)
   const [form, setForm] = useState({ name: '', email: '', role: 'operator' })
+  const [updatingId, setUpdatingId] = useState(null)
+  const [actionError, setActionError] = useState('')
 
   async function loadUsers() {
     const { data } = await supabase.from('profiles').select('*').order('created_at')
@@ -46,6 +48,23 @@ export default function Settings() {
     setModal(false)
     setForm({ name: '', email: '', role: 'operator' })
     loadUsers()
+  }
+
+  async function toggleDisabled(user) {
+    if (!isAdmin || user.id === profile?.id || updatingId) return
+    const disabling = !user.disabled_at
+    if (disabling && !window.confirm(`确定禁用 ${user.name || user.email}？禁用后该账号将无法登录。`)) return
+    setUpdatingId(user.id)
+    setActionError('')
+    const { data, error } = await supabase.functions.invoke('admin-user-status', {
+      body: { user_id: user.id, disabled: disabling },
+    })
+    if (error || data?.error) {
+      setActionError(data?.error || error?.message || '操作失败')
+    } else {
+      await loadUsers()
+    }
+    setUpdatingId(null)
   }
 
   return (
@@ -95,24 +114,38 @@ export default function Settings() {
               </div>
 
               <div className="mt-4 space-y-2">
+                {actionError && <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{actionError}</div>}
                 {users.length === 0 && <div className="py-6 text-center text-sm text-slate-400">暂无账号</div>}
                 {users.map((u) => {
                   const open = !!revealed[u.id]
                   return (
                     <div key={u.id} className="rounded-xl border border-slate-100">
-                      <button
-                        type="button"
-                        onClick={() => isAdmin && toggleReveal(u.id)}
-                        className={`flex w-full items-center gap-3 p-3 text-left ${isAdmin ? 'cursor-pointer hover:bg-slate-50' : 'cursor-default'}`}
-                      >
-                        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 font-semibold text-slate-600">{(u.name || u.email || '?')[0].toUpperCase()}</div>
-                        <div className="flex-1">
-                          <div className="text-sm font-medium text-slate-800">{u.name}</div>
-                          <div className="text-xs text-slate-400">用户名 {usernameOf(u.email)}</div>
-                        </div>
-                        <Badge color={roleMeta(u.role).color}>{roleMeta(u.role).label}</Badge>
-                        {isAdmin && <span className="text-slate-400">{open ? <EyeOff size={16} /> : <Eye size={16} />}</span>}
-                      </button>
+                      <div className="flex items-center gap-2 p-3">
+                        <button
+                          type="button"
+                          onClick={() => isAdmin && toggleReveal(u.id)}
+                          className={`flex min-w-0 flex-1 items-center gap-3 text-left ${isAdmin ? 'cursor-pointer' : 'cursor-default'}`}
+                        >
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 font-semibold text-slate-600">{(u.name || u.email || '?')[0].toUpperCase()}</div>
+                          <div className="min-w-0 flex-1">
+                            <div className="truncate text-sm font-medium text-slate-800">{u.name}</div>
+                            <div className="truncate text-xs text-slate-400">用户名 {usernameOf(u.email)}</div>
+                          </div>
+                          {u.disabled_at && <Badge color="red">已禁用</Badge>}
+                          <Badge color={roleMeta(u.role).color}>{roleMeta(u.role).label}</Badge>
+                          {isAdmin && <span className="text-slate-400">{open ? <EyeOff size={16} /> : <Eye size={16} />}</span>}
+                        </button>
+                        {isAdmin && u.id !== profile?.id && (
+                          <button
+                            type="button"
+                            disabled={updatingId === u.id}
+                            onClick={() => toggleDisabled(u)}
+                            className={`inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium ${u.disabled_at ? 'bg-green-50 text-green-700 hover:bg-green-100' : 'bg-red-50 text-red-600 hover:bg-red-100'} disabled:opacity-50`}
+                          >
+                            {updatingId === u.id ? '处理中…' : u.disabled_at ? <><CircleCheck size={14} /> 恢复</> : <><Ban size={14} /> 禁用</>}
+                          </button>
+                        )}
+                      </div>
                       {isAdmin && open && (
                         <div className="flex items-center justify-between border-t border-slate-100 px-3 py-2.5 text-sm">
                           <span className="text-slate-500">账号密码</span>
