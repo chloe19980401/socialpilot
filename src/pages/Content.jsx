@@ -57,9 +57,31 @@ const METRICS = [
   { key: 'comments', label: '总评论', icon: <MessageCircle size={20} />, fmt: (v) => v },
   { key: 'engagement', label: '平均互动率', icon: <TrendingUp size={20} />, fmt: () => '0.00%' },
 ]
-const RANGES = [{ value: 7, label: '近7天' }, { value: 14, label: '近14天' }, { value: 30, label: '近30天' }]
 const emptyPost = { url: '', title: '', platform: 'instagram', brand_id: '', published_at: '', operator: '', designer: '', thumbnail_url: '', plan_id: '' }
 const metricValue = (value) => value == null ? '—' : compactEN(value)
+
+function currentPeriod(type, now = new Date()) {
+  const year = now.getFullYear()
+  if (type === 'month') return `${year}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  if (type === 'quarter') return `${year}-Q${Math.floor(now.getMonth() / 3) + 1}`
+  return String(year)
+}
+
+function periodBounds(type, value) {
+  let year; let startMonth = 0; let monthCount = 12
+  if (type === 'month') {
+    const [y, m] = value.split('-').map(Number); year = y; startMonth = m - 1; monthCount = 1
+  } else if (type === 'quarter') {
+    const [y, q] = value.split('-Q').map(Number); year = y; startMonth = (q - 1) * 3; monthCount = 3
+  } else year = Number(value)
+  return { start: new Date(year, startMonth, 1), end: new Date(year, startMonth + monthCount, 1) }
+}
+
+function periodLabel(type, value) {
+  if (type === 'month') { const [y, m] = value.split('-'); return `${y}年${Number(m)}月` }
+  if (type === 'quarter') { const [y, q] = value.split('-Q'); return `${y}年第${q}季度` }
+  return `${value}年`
+}
 
 export default function Content() {
   const [posts, setPosts] = useState([])
@@ -70,8 +92,9 @@ export default function Content() {
   const [brandTab, setBrandTab] = useState('all')
   const [platformTab, setPlatformTab] = useState('all')
   const [operatorTab, setOperatorTab] = useState('all')
+  const [periodType, setPeriodType] = useState('month')
+  const [period, setPeriod] = useState(() => currentPeriod('month'))
   const [metric, setMetric] = useState('count')
-  const [range, setRange] = useState(30)
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
   const [modal, setModal] = useState(false)
@@ -98,10 +121,20 @@ export default function Content() {
   }
   useEffect(() => { load() }, [])
 
-  const filtered = useMemo(
-    () => (brandTab === 'all' ? posts : posts.filter((p) => p.brand_id === brandTab)),
-    [posts, brandTab]
-  )
+  const availableYears = useMemo(() => {
+    const years = posts.map((p) => p.published_at && new Date(p.published_at).getFullYear()).filter(Boolean)
+    return [...new Set([new Date().getFullYear(), ...years])].sort((a, b) => b - a)
+  }, [posts])
+
+  const filtered = useMemo(() => {
+    const { start, end } = periodBounds(periodType, period)
+    return posts.filter((p) => {
+      if (brandTab !== 'all' && p.brand_id !== brandTab) return false
+      if (!p.published_at) return false
+      const date = new Date(p.published_at)
+      return date >= start && date < end
+    })
+  }, [posts, brandTab, periodType, period])
 
   // 帖子列表按平台筛选（不影响上方总览指标）
   const listPlatforms = useMemo(() => {
@@ -139,18 +172,23 @@ export default function Content() {
   }
 
   const trend = useMemo(() => {
-    const sum = { count: () => 1, likes: (p) => p.likes || 0, views: (p) => p.views || 0, comments: (p) => p.comments || 0, engagement: () => 0 }[metric]
-    return [...Array(90)].map((_, i) => {
-      const d = new Date(); d.setDate(d.getDate() - (89 - i))
+    const { start, end } = periodBounds(periodType, period)
+    const days = Math.round((end - start) / 86400000)
+    return [...Array(days)].map((_, i) => {
+      const d = new Date(start); d.setDate(d.getDate() + i)
       const dayPosts = filtered.filter((p) => p.published_at && new Date(p.published_at).toDateString() === d.toDateString())
-      return { date: `${d.getMonth() + 1}/${d.getDate()}`, value: dayPosts.reduce((s, p) => s + sum(p), 0) }
+      const views = dayPosts.reduce((s, p) => s + (p.views || 0), 0)
+      const interactions = dayPosts.reduce((s, p) => s + (p.likes || 0) + (p.comments || 0) + (p.shares || 0) + (p.saves || 0), 0)
+      const value = metric === 'count' ? dayPosts.length
+        : metric === 'engagement' ? (views ? interactions / views * 100 : 0)
+          : dayPosts.reduce((s, p) => s + (p[metric] || 0), 0)
+      return { date: `${d.getMonth() + 1}/${d.getDate()}`, value: Number(value.toFixed(2)) }
     })
-  }, [filtered, metric])
+  }, [filtered, metric, periodType, period])
 
   const operators = useMemo(() => {
-    const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - range)
     const map = {}
-    filtered.filter((p) => !p.published_at || new Date(p.published_at) >= cutoff).forEach((p) => {
+    filtered.forEach((p) => {
       const owner = resolvePostOperator(p, profiles, ownershipPlans)
       const key = owner.key
       if (!map[key]) map[key] = { name: owner.name, email: owner.email, count: 0, views: 0, likes: 0, comments: 0, shares: 0, saves: 0 }
@@ -158,7 +196,7 @@ export default function Content() {
       map[key].comments += p.comments || 0; map[key].shares += p.shares || 0; map[key].saves += p.saves || 0
     })
     return Object.values(map)
-  }, [filtered, range, profiles, ownershipPlans])
+  }, [filtered, profiles, ownershipPlans])
 
   async function syncPosts() {
     setSyncing(true)
@@ -310,7 +348,21 @@ export default function Content() {
       />
 
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <Tabs tabs={brandTabs} value={brandTab} onChange={setBrandTab} />
+        <div className="flex flex-wrap items-center gap-2">
+          <Tabs tabs={brandTabs} value={brandTab} onChange={setBrandTab} />
+          <Tabs tabs={[{ value: 'month', label: '月' }, { value: 'quarter', label: '季度' }, { value: 'year', label: '年' }]} value={periodType} onChange={(type) => { setPeriodType(type); setPeriod(currentPeriod(type)) }} />
+          {periodType === 'month' && <input aria-label="选择月份" type="month" className={inputClass + ' w-auto'} value={period} onChange={(e) => setPeriod(e.target.value)} />}
+          {periodType === 'quarter' && (
+            <select aria-label="选择季度" className={inputClass + ' w-auto'} value={period} onChange={(e) => setPeriod(e.target.value)}>
+              {availableYears.flatMap((y) => [1, 2, 3, 4].map((q) => <option key={`${y}-Q${q}`} value={`${y}-Q${q}`}>{y}年第{q}季度</option>))}
+            </select>
+          )}
+          {periodType === 'year' && (
+            <select aria-label="选择年份" className={inputClass + ' w-auto'} value={period} onChange={(e) => setPeriod(e.target.value)}>
+              {availableYears.map((y) => <option key={y} value={String(y)}>{y}年</option>)}
+            </select>
+          )}
+        </div>
         <Button onClick={syncPosts} disabled={syncing}><RefreshCcw size={16} className={syncing ? 'animate-spin' : ''} /> {syncing ? '同步中…' : '一键同步互动数据'}</Button>
       </div>
 
@@ -322,12 +374,12 @@ export default function Content() {
 
       <Card className="mb-6">
         <div className="mb-1 font-semibold text-slate-800">{activeMetric.label}趋势</div>
-        <div className="mb-4 text-xs text-slate-400">近 90 天每日趋势（点击上方卡片切换指标）</div>
+        <div className="mb-4 text-xs text-slate-400">{periodLabel(periodType, period)}每日趋势（点击上方卡片切换指标）</div>
         <ResponsiveContainer width="100%" height={240}>
           <AreaChart data={trend}>
             <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} /><stop offset="95%" stopColor="#6366f1" stopOpacity={0} /></linearGradient></defs>
             <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-            <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#94a3b8' }} interval={12} />
+            <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#94a3b8' }} interval={periodType === 'month' ? 2 : periodType === 'quarter' ? 8 : 30} />
             <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: '#94a3b8' }} />
             <Tooltip />
             <Area type="monotone" dataKey="value" stroke="#6366f1" strokeWidth={2} fill="url(#g)" />
@@ -412,7 +464,7 @@ export default function Content() {
             <div className="font-semibold text-slate-800">运营工作数据</div>
             <div className="text-xs text-slate-400">各运营的发布数量与互动数据（点赞 / 评论 / 转发 / 收藏 / 播放）</div>
           </div>
-          <Tabs tabs={RANGES} value={range} onChange={setRange} />
+          <Badge color="blue">{periodLabel(periodType, period)}</Badge>
         </div>
         {operators.length === 0 ? (
           <div className="py-12 text-center text-sm text-slate-400">{loading ? '加载中…' : '暂无运营数据'}</div>
