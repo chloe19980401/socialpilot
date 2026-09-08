@@ -351,7 +351,14 @@ export default function Content() {
         <div className="flex flex-wrap items-center gap-2">
           <Tabs tabs={brandTabs} value={brandTab} onChange={setBrandTab} />
           <Tabs tabs={[{ value: 'month', label: '月' }, { value: 'quarter', label: '季度' }, { value: 'year', label: '年' }]} value={periodType} onChange={(type) => { setPeriodType(type); setPeriod(currentPeriod(type)) }} />
-          {periodType === 'month' && <input aria-label="选择月份" type="month" className={inputClass + ' w-auto'} value={period} onChange={(e) => setPeriod(e.target.value)} />}
+          {periodType === 'month' && (
+            <select aria-label="选择月份" className={inputClass + ' w-36 cursor-pointer'} value={period} onChange={(e) => setPeriod(e.target.value)}>
+              {availableYears.flatMap((y) => [...Array(12)].map((_, i) => {
+                const value = `${y}-${String(i + 1).padStart(2, '0')}`
+                return <option key={value} value={value}>{y}年{i + 1}月</option>
+              }))}
+            </select>
+          )}
           {periodType === 'quarter' && (
             <select aria-label="选择季度" className={inputClass + ' w-auto'} value={period} onChange={(e) => setPeriod(e.target.value)}>
               {availableYears.flatMap((y) => [1, 2, 3, 4].map((q) => <option key={`${y}-Q${q}`} value={`${y}-Q${q}`}>{y}年第{q}季度</option>))}
