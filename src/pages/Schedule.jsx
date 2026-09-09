@@ -320,6 +320,17 @@ export default function Schedule() {
     await load()
   }
 
+  async function checkPublication(p, acc) {
+    const key = `${p.id}:${acc.id}`
+    setPublishingKey(key)
+    const { data, error } = await supabase.functions.invoke('publish-content', {
+      body: { action: 'check', plan_id: p.id, account_id: acc.id },
+    })
+    setPublishingKey('')
+    if (error || !data?.ok) alert(`查询失败：${data?.error || error?.message || '未知错误'}`)
+    await load()
+  }
+
   // 管理员消除逾期
   function clearOverdue(p) {
     if (!confirm(`消除「${p.title || '未命名'}」的逾期记录？该记录将不再计入绩效扣分。`)) return
@@ -351,7 +362,7 @@ export default function Schedule() {
 
   const accountsForBrand = accounts.filter((a) => !form.brand_id || a.brand_id === form.brand_id)
 
-  const shared = { brandMap, accountMap, openEdit, remove, submitReview, approve, reject: (p) => setRejectFor(p), reopen, markPublished, markAccountPublished, publishAccount, publicationJobs, publishingKey, clearOverdue, isAdmin, profile, readOnly }
+  const shared = { brandMap, accountMap, openEdit, remove, submitReview, approve, reject: (p) => setRejectFor(p), reopen, markPublished, markAccountPublished, publishAccount, checkPublication, publicationJobs, publishingKey, clearOverdue, isAdmin, profile, readOnly }
 
   return (
     <div>
@@ -546,7 +557,7 @@ export default function Schedule() {
 }
 
 /* ---------------- 排期卡片操作区 ---------------- */
-function PlanActions({ p, isAdmin, profile, accountMap, openEdit, remove, submitReview, approve, reject, reopen, markPublished, markAccountPublished, publishAccount, publicationJobs, publishingKey, clearOverdue }) {
+function PlanActions({ p, isAdmin, profile, accountMap, openEdit, remove, submitReview, approve, reject, reopen, markPublished, markAccountPublished, publishAccount, checkPublication, publicationJobs, publishingKey, clearOverdue }) {
   const iconBtn = 'inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium transition'
   const accs = planAccountIds(p).map((id) => accountMap?.[id]).filter(Boolean)
   const pub = publishedIds(p)
@@ -566,7 +577,7 @@ function PlanActions({ p, isAdmin, profile, accountMap, openEdit, remove, submit
             return done ? (
               <span key={a.id} className="inline-flex items-center gap-1 rounded-lg bg-green-50 px-2 py-1 text-xs text-green-600" title={`${a.display_name || a.handle} 已发布`}><m.Icon size={12} />{a.display_name || a.handle}<Check size={12} /></span>
             ) : job?.status === 'processing' ? (
-              <span key={a.id} className="inline-flex items-center gap-1 rounded-lg bg-blue-50 px-2 py-1 text-xs text-blue-600" title="平台正在处理素材"><Loader2 size={12} className="animate-spin" />{a.display_name || a.handle} 处理中</span>
+              <button key={a.id} disabled={busy && publishingKey === `${p.id}:${a.id}`} onClick={() => checkPublication(p, a)} className="inline-flex items-center gap-1 rounded-lg bg-blue-50 px-2 py-1 text-xs text-blue-600 hover:bg-blue-100 disabled:opacity-50" title="点击查询平台处理结果"><Loader2 size={12} className="animate-spin" />{a.display_name || a.handle} 处理中 · 查询</button>
             ) : (
               <span key={a.id} className="inline-flex items-center gap-1">
                 <button disabled={busy} onClick={() => publishAccount(p, a)} className={`${iconBtn} bg-brand-50 text-brand-700 hover:bg-brand-100 disabled:opacity-50`} title={job?.error_message || `发布到 ${a.display_name || a.handle}`}>

@@ -162,6 +162,55 @@ async function publish(platform: string, plan: Json, account: Json, db: ReturnTy
   throw new PublishError(`暂不支持平台：${platform}`, true)
 }
 
+async function capabilities(platform: string, account: Json, db: ReturnType<typeof admin>) {
+  if (platform === 'facebook') {
+    if (!account.external_id) throw new PublishError('缺少 Facebook Page ID', true)
+    await pageToken(account.external_id)
+    return { ready: true, message: 'Facebook Page 发布授权可用' }
+  }
+  if (platform === 'instagram') {
+    if (!IG_TOKEN || !account.external_id) throw new PublishError('缺少 Instagram 发布令牌或 Business ID', true)
+    await api(`${GRAPH}/${account.external_id}?fields=id,username&access_token=${encodeURIComponent(IG_TOKEN)}`)
+    return { ready: true, message: 'Instagram 内容发布授权可用' }
+  }
+  if (platform === 'tiktok') {
+    const token = await tiktokToken(db)
+    const d = await api('https://open.tiktokapis.com/v2/post/publish/creator_info/query/', {
+      method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json; charset=UTF-8' },
+    })
+    return { ready: true, message: 'TikTok Direct Post 授权可用', privacy_levels: d?.data?.privacy_level_options || [] }
+  }
+  if (platform === 'youtube') {
+    await googleAccessToken()
+    return { ready: true, message: 'YouTube 视频上传授权可用' }
+  }
+  throw new PublishError(`暂不支持平台：${platform}`, true)
+}
+
+async function checkProcessing(job: Json, account: Json, db: ReturnType<typeof admin>) {
+  if (!job.external_id) throw new PublishError('平台没有返回发布任务 ID')
+  if (job.platform === 'tiktok') {
+    const token = await tiktokToken(db)
+    const d = await api('https://open.tiktokapis.com/v2/post/publish/status/fetch/', {
+      method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json; charset=UTF-8' },
+      body: JSON.stringify({ publish_id: job.external_id }),
+    })
+    const value = d?.data?.status
+    if (value === 'PUBLISH_COMPLETE') return { complete: true, raw: d }
+    if (value === 'FAILED') throw new PublishError(`TikTok 发布失败：${d?.data?.fail_reason || '未知原因'}`)
+    return { complete: false, raw: d }
+  }
+  if (job.platform === 'facebook') {
+    const token = await pageToken(account.external_id)
+    const d = await api(`${GRAPH}/${job.external_id}?fields=status,permalink_url&access_token=${encodeURIComponent(token)}`)
+    const value = d?.status?.video_status || d?.status?.uploading_phase?.status
+    if (['ready', 'complete', 'completed'].includes(String(value).toLowerCase())) return { complete: true, raw: d, published_url: d.permalink_url }
+    if (['error', 'failed'].includes(String(value).toLowerCase())) throw new PublishError('Facebook 视频处理失败')
+    return { complete: false, raw: d }
+  }
+  return { complete: true, raw: job.response_data || {} }
+}
+
 async function authorize(req: Request, db: ReturnType<typeof admin>, plan: Json) {
   const token = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '')
   if (!token) throw new PublishError('请先登录', true)
@@ -196,6 +245,10 @@ Deno.serve(async (req) => {
     const user = await authorize(req, db, plan)
     const targets = plan.account_ids?.length ? plan.account_ids : (plan.account_id ? [plan.account_id] : [])
     if (!targets.includes(account.id)) throw new PublishError('该账号不在排期发布目标中', true)
+    if (action === 'capabilities') {
+      const result = await capabilities(String(account.platform).toLowerCase(), account, db)
+      return json({ ok: true, platform: account.platform, ...result })
+    }
     if (plan.status !== 'approved' && plan.status !== 'published') throw new PublishError('帖子审核通过后才能发布', true)
 
     const scheduledAt = plan.scheduled_at || new Date().toISOString()
@@ -205,6 +258,22 @@ Deno.serve(async (req) => {
       ...(action === 'schedule' ? { status: 'queued', error_message: null } : {}),
     }, { onConflict: 'plan_id,account_id' }).select().single()
     if (action === 'schedule') return json({ ok: true, job })
+    if (action === 'check') {
+      if (job?.status !== 'processing') return json({ ok: true, job })
+      try {
+        const checked = await checkProcessing(job, account, db)
+        const values = checked.complete
+          ? { status: 'published', response_data: checked.raw || {}, published_url: checked.published_url || job.published_url, published_at: new Date().toISOString(), error_message: null }
+          : { response_data: checked.raw || {} }
+        const { data: updated } = await db.from('publication_jobs').update(values).eq('id', job.id).select().single()
+        if (checked.complete) await syncPlan(db, plan)
+        return json({ ok: true, job: updated })
+      } catch (e) {
+        const err = e as PublishError
+        const { data: updated } = await db.from('publication_jobs').update({ status: 'failed', error_message: err.message }).eq('id', job.id).select().single()
+        return json({ ok: false, error: err.message, job: updated }, 502)
+      }
+    }
     if (job?.status === 'published') return json({ ok: true, job, already_published: true })
 
     await db.from('publication_jobs').update({ status: 'publishing', error_message: null, attempts: Number(job?.attempts || 0) + 1, started_at: new Date().toISOString() }).eq('id', job.id)
