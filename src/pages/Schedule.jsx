@@ -149,17 +149,19 @@ export default function Schedule() {
     setForm((f) => ({ ...f, topic: v }))
   }
 
-  // 上传配图到 Supabase Storage，得到公开链接
-  async function uploadImage(file) {
+  // 上传图片/视频到公开素材桶，平台发布接口可直接抓取。
+  async function uploadMedia(file) {
     if (!file) return
-    if (!file.type.startsWith('image/')) { alert('请选择图片文件'); return }
+    const isImage = file.type.startsWith('image/')
+    const isVideo = file.type.startsWith('video/')
+    if (!isImage && !isVideo) { alert('请选择图片或视频文件'); return }
     setUploading(true)
     const ext = (file.name.split('.').pop() || 'png').toLowerCase()
     const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
     const { error } = await supabase.storage.from('plan-images').upload(path, file, { cacheControl: '3600', upsert: false })
     if (error) { alert('上传失败：' + error.message); setUploading(false); return }
     const { data } = supabase.storage.from('plan-images').getPublicUrl(path)
-    setForm((f) => ({ ...f, thumbnail_url: data.publicUrl }))
+    setForm((f) => ({ ...f, [isVideo ? 'asset_url' : 'thumbnail_url']: data.publicUrl }))
     setUploading(false)
   }
 
@@ -521,11 +523,19 @@ export default function Schedule() {
               <label className={`flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed px-3 py-2.5 text-sm ${uploading ? 'border-brand-300 text-brand-500' : 'border-slate-300 text-slate-500 hover:bg-slate-50'}`}>
                 {uploading ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
                 {uploading ? '上传中…' : '点击上传图片'}
-                <input type="file" accept="image/*" className="hidden" disabled={uploading} onChange={(e) => { uploadImage(e.target.files?.[0]); e.target.value = '' }} />
+                <input type="file" accept="image/*" className="hidden" disabled={uploading} onChange={(e) => { uploadMedia(e.target.files?.[0]); e.target.value = '' }} />
               </label>
             )}
           </Field>
-          <Field label="素材/网盘链接"><input className={inputClass} value={form.asset_url} onChange={(e) => setForm({ ...form, asset_url: e.target.value })} placeholder="https://…" /></Field>
+          <Field label="视频素材/直链">
+            <div className="space-y-2">
+              <input className={inputClass} value={form.asset_url} onChange={(e) => setForm({ ...form, asset_url: e.target.value })} placeholder="https://…" />
+              <label className={`flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed px-3 py-2 text-xs ${uploading ? 'border-brand-300 text-brand-500' : 'border-slate-300 text-slate-500 hover:bg-slate-50'}`}>
+                {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}{uploading ? '上传中…' : '上传视频文件'}
+                <input type="file" accept="video/*,.mov,.mp4" className="hidden" disabled={uploading} onChange={(e) => { uploadMedia(e.target.files?.[0]); e.target.value = '' }} />
+              </label>
+            </div>
+          </Field>
           <div className="col-span-2">
             <Field label="帖子主题类型">
               <select className={inputClass} value={form.topic} onChange={(e) => handleTopicChange(e.target.value)}>
