@@ -80,6 +80,8 @@ export default function Schedule() {
   const [brands, setBrands] = useState([])
   const [accounts, setAccounts] = useState([])
   const [people, setPeople] = useState([])
+  const [publicationJobs, setPublicationJobs] = useState([])
+  const [publishingKey, setPublishingKey] = useState('')
   const [loading, setLoading] = useState(true)
 
   const [view, setView] = useState('kanban')
@@ -104,11 +106,12 @@ export default function Schedule() {
 
   const load = useCallback(async () => {
     setLoading(true)
-    const [{ data: pl }, { data: br }, { data: ac }, { data: pe }] = await Promise.all([
+    const [{ data: pl }, { data: br }, { data: ac }, { data: pe }, { data: jobs }] = await Promise.all([
       supabase.from('content_plans').select('*').order('scheduled_at', { ascending: true }),
       supabase.from('brands').select('id, name, color'),
       supabase.from('accounts').select('id, display_name, handle, platform, brand_id'),
       supabase.from('profiles').select('id, email, name, role'),
+      supabase.from('publication_jobs').select('*').order('updated_at', { ascending: false }),
     ])
     const list = pl || []
     // 回填逾期：到点仍未发全的、审核通过的排期，记录为逾期（持久化）
@@ -121,6 +124,7 @@ export default function Schedule() {
     setBrands(br || [])
     setAccounts(ac || [])
     setPeople(pe || [])
+    setPublicationJobs(jobs || [])
     setLoading(false)
   }, [])
   useEffect(() => { load() }, [load])
@@ -294,6 +298,28 @@ export default function Schedule() {
     patch(p.id, { published_account_ids: [...publishedIds(p), ...remaining.map((a) => a.id)], status: 'published', ...latePatch(p) })
   }
 
+  // 通过服务端发布到真实平台；服务端再次校验审核状态、负责人和平台权限。
+  async function publishAccount(p, acc) {
+    const media = ['video', 'reels', 'story'].includes(String(p.content_type || '').toLowerCase())
+      ? p.asset_url : (p.thumbnail_url || p.asset_url)
+    if (!media) { alert(`请先为「${p.title || '未命名'}」添加可公网访问的发布素材`); return }
+    if (!confirm(`确认现在把「${p.title || '未命名'}」真实发布到 ${acc.display_name || acc.handle}？\n\n此操作会调用 ${platformMeta(acc.platform).label} 官方接口，发布后可能立即对外可见。`)) return
+    const key = `${p.id}:${acc.id}`
+    setPublishingKey(key)
+    const { data, error } = await supabase.functions.invoke('publish-content', {
+      body: { action: 'publish', plan_id: p.id, account_id: acc.id },
+    })
+    setPublishingKey('')
+    if (error || !data?.ok) {
+      const message = data?.error || error?.context?.body?.error || error?.message || '未知错误'
+      alert(`发布失败：${message}`)
+      await load()
+      return
+    }
+    alert(data.job?.status === 'processing' ? '平台已接收素材，正在处理中。可稍后刷新查看状态。' : '发布成功')
+    await load()
+  }
+
   // 管理员消除逾期
   function clearOverdue(p) {
     if (!confirm(`消除「${p.title || '未命名'}」的逾期记录？该记录将不再计入绩效扣分。`)) return
@@ -325,7 +351,7 @@ export default function Schedule() {
 
   const accountsForBrand = accounts.filter((a) => !form.brand_id || a.brand_id === form.brand_id)
 
-  const shared = { brandMap, accountMap, openEdit, remove, submitReview, approve, reject: (p) => setRejectFor(p), reopen, markPublished, markAccountPublished, clearOverdue, isAdmin, profile, readOnly }
+  const shared = { brandMap, accountMap, openEdit, remove, submitReview, approve, reject: (p) => setRejectFor(p), reopen, markPublished, markAccountPublished, publishAccount, publicationJobs, publishingKey, clearOverdue, isAdmin, profile, readOnly }
 
   return (
     <div>
@@ -520,7 +546,7 @@ export default function Schedule() {
 }
 
 /* ---------------- 排期卡片操作区 ---------------- */
-function PlanActions({ p, isAdmin, profile, accountMap, openEdit, remove, submitReview, approve, reject, reopen, markPublished, markAccountPublished, clearOverdue }) {
+function PlanActions({ p, isAdmin, profile, accountMap, openEdit, remove, submitReview, approve, reject, reopen, markPublished, markAccountPublished, publishAccount, publicationJobs, publishingKey, clearOverdue }) {
   const iconBtn = 'inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium transition'
   const accs = planAccountIds(p).map((id) => accountMap?.[id]).filter(Boolean)
   const pub = publishedIds(p)
@@ -535,10 +561,20 @@ function PlanActions({ p, isAdmin, profile, accountMap, openEdit, remove, submit
           {accs.map((a) => {
             const done = pub.includes(a.id)
             const m = platformMeta(a.platform)
+            const job = publicationJobs?.find((j) => j.plan_id === p.id && j.account_id === a.id)
+            const busy = publishingKey === `${p.id}:${a.id}` || ['publishing', 'processing'].includes(job?.status)
             return done ? (
               <span key={a.id} className="inline-flex items-center gap-1 rounded-lg bg-green-50 px-2 py-1 text-xs text-green-600" title={`${a.display_name || a.handle} 已发布`}><m.Icon size={12} />{a.display_name || a.handle}<Check size={12} /></span>
+            ) : job?.status === 'processing' ? (
+              <span key={a.id} className="inline-flex items-center gap-1 rounded-lg bg-blue-50 px-2 py-1 text-xs text-blue-600" title="平台正在处理素材"><Loader2 size={12} className="animate-spin" />{a.display_name || a.handle} 处理中</span>
             ) : (
-              <button key={a.id} onClick={() => markAccountPublished(p, a)} className={`${iconBtn} border border-slate-200 text-slate-600 hover:bg-brand-50 hover:text-brand-700`} title={`标记 ${a.display_name || a.handle} 已发布`}><m.Icon size={12} />{a.display_name || a.handle}<Rocket size={11} /></button>
+              <span key={a.id} className="inline-flex items-center gap-1">
+                <button disabled={busy} onClick={() => publishAccount(p, a)} className={`${iconBtn} bg-brand-50 text-brand-700 hover:bg-brand-100 disabled:opacity-50`} title={job?.error_message || `发布到 ${a.display_name || a.handle}`}>
+                  {busy ? <Loader2 size={12} className="animate-spin" /> : <m.Icon size={12} />}发布到 {a.display_name || a.handle}
+                </button>
+                {['failed', 'blocked'].includes(job?.status) && <span className="max-w-48 truncate text-[11px] text-red-500" title={job.error_message}>失败：{job.error_message}</span>}
+                <button onClick={() => markAccountPublished(p, a)} className="text-[11px] text-slate-400 hover:text-slate-600" title="已经在平台手动发布时使用">手动标记</button>
+              </span>
             )
           })}
         </div>
@@ -559,8 +595,8 @@ function PlanActions({ p, isAdmin, profile, accountMap, openEdit, remove, submit
           </button>
         )}
         {p.status === 'pending' && !isAdmin && !canSelfApprove && <Badge color="orange">等待负责人审核</Badge>}
-        {p.status === 'approved' && (
-          <button className={`${iconBtn} bg-brand-50 text-brand-700 hover:bg-brand-100`} onClick={() => markPublished(p)}><Rocket size={12} /> {accs.length > 1 ? '全部标记已发布' : '标记已发布'}</button>
+        {p.status === 'approved' && accs.length === 0 && (
+          <button className={`${iconBtn} bg-slate-100 text-slate-600 hover:bg-slate-200`} onClick={() => markPublished(p)}><Rocket size={12} />手动标记已发布</button>
         )}
         {p.status === 'rejected' && (
           <button className={`${iconBtn} bg-slate-100 text-slate-600 hover:bg-slate-200`} onClick={() => reopen(p)}><Pencil size={12} /> 重新编辑</button>
