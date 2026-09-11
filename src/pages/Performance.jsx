@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend,
 } from 'recharts'
-import { Award, RefreshCw, Plus, Target, CheckCircle2, TrendingUp, Users, ShoppingCart, RefreshCcw, AlertTriangle, Pencil } from 'lucide-react'
+import { Award, RefreshCw, Plus, Target, CheckCircle2, TrendingUp, Users, ShoppingCart, RefreshCcw, AlertTriangle, Pencil, Trash2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { Card, StatCard } from '../components/ui/Card'
 import PageHeader from '../components/ui/PageHeader'
@@ -203,6 +203,19 @@ export default function Performance() {
     setModal(true)
   }
 
+  async function deleteGoal() {
+    if (!form.id) return
+    const label = `${form.operator ? (profiles.find((p) => p.email === form.operator)?.name || form.operator) : ''}的“${form.metric}”指标`
+    if (!confirm(`确定删除${label}吗？\n\n删除后无法恢复。`)) return
+    setSaving(true)
+    const { error } = await supabase.from('kpi_goals').delete().eq('id', form.id)
+    setSaving(false)
+    if (error) { alert(`删除失败：${error.message}`); return }
+    setModal(false)
+    setForm({ id: null, operator: '', metric: '发帖数', target: '', period: month })
+    load()
+  }
+
   return (
     <div>
       <PageHeader
@@ -365,7 +378,11 @@ export default function Performance() {
       )}
 
       <Modal open={modal} onClose={() => setModal(false)} title={form.id ? '编辑 KPI 指标' : '设定 KPI 指标'}
-        footer={<><Button onClick={() => setModal(false)}>取消</Button><Button variant="primary" onClick={saveGoal} disabled={saving}>{saving ? '保存中…' : '保存'}</Button></>}>
+        footer={<>
+          {form.id && <Button onClick={deleteGoal} disabled={saving} className="mr-auto border-red-200 text-red-600 hover:bg-red-50"><Trash2 size={16} /> 删除指标</Button>}
+          <Button onClick={() => setModal(false)} disabled={saving}>取消</Button>
+          <Button variant="primary" onClick={saveGoal} disabled={saving}>{saving ? '处理中…' : '保存'}</Button>
+        </>}>
         <form onSubmit={saveGoal} className="grid grid-cols-2 gap-4">
           <Field label="运营人员">
             <select className={inputClass} value={form.operator} onChange={(e) => setForm({ ...form, operator: e.target.value })}>
