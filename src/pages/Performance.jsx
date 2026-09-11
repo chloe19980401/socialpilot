@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend,
 } from 'recharts'
-import { Award, RefreshCw, Plus, Target, CheckCircle2, TrendingUp, Users, ShoppingCart, RefreshCcw, AlertTriangle } from 'lucide-react'
+import { Award, RefreshCw, Plus, Target, CheckCircle2, TrendingUp, Users, ShoppingCart, RefreshCcw, AlertTriangle, Pencil } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { Card, StatCard } from '../components/ui/Card'
 import PageHeader from '../components/ui/PageHeader'
@@ -44,7 +44,7 @@ export default function Performance() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [modal, setModal] = useState(false)
-  const [form, setForm] = useState({ operator: '', metric: '发帖数', target: '', period: month })
+  const [form, setForm] = useState({ id: null, operator: '', metric: '发帖数', target: '', period: month })
 
   async function load() {
     setLoading(true)
@@ -175,12 +175,32 @@ export default function Performance() {
   async function saveGoal(e) {
     e.preventDefault()
     if (!form.operator || !form.target) return
+    setSaving(true)
     const op = profiles.find((p) => p.email === form.operator)
-    await supabase.from('kpi_goals').insert({
+    const payload = {
       operator_email: form.operator, operator_name: op?.name || form.operator.split('@')[0],
       metric: form.metric, target: Number(form.target) || 0, period: form.period || month,
+    }
+    const query = form.id
+      ? supabase.from('kpi_goals').update(payload).eq('id', form.id)
+      : supabase.from('kpi_goals').insert(payload)
+    const { error } = await query
+    setSaving(false)
+    if (error) { alert(`保存失败：${error.message}`); return }
+    setModal(false)
+    setForm({ id: null, operator: '', metric: '发帖数', target: '', period: month })
+    load()
+  }
+
+  function editGoal(goal) {
+    setForm({
+      id: goal.id,
+      operator: goal.operator_email || '',
+      metric: goal.metric || '发帖数',
+      target: String(goal.target ?? ''),
+      period: goal.period || month,
     })
-    setModal(false); setForm({ operator: '', metric: '发帖数', target: '', period: month }); load()
+    setModal(true)
   }
 
   return (
@@ -191,7 +211,7 @@ export default function Performance() {
         subtitle="KPI 指标 · 数据自动关联内容中心"
         actions={<>
           <Button onClick={load}><RefreshCw size={16} /> 刷新</Button>
-          <Button variant="primary" onClick={() => { setForm({ operator: '', metric: '发帖数', target: '', period: month }); setModal(true) }}><Plus size={16} /> 设定指标</Button>
+          <Button variant="primary" onClick={() => { setForm({ id: null, operator: '', metric: '发帖数', target: '', period: month }); setModal(true) }}><Plus size={16} /> 设定指标</Button>
         </>}
       />
 
@@ -322,9 +342,15 @@ export default function Performance() {
                   const color = g.raw >= 100 ? '#22c55e' : g.raw >= 60 ? '#3b82f6' : g.raw >= 30 ? '#f59e0b' : '#ef4444'
                   return (
                     <div key={g.id}>
-                      <div className="mb-1 flex items-center justify-between text-sm">
+                      <div className="mb-1 flex items-center justify-between gap-3 text-sm">
                         <span className="text-slate-600">{g.metric}</span>
-                        <span className="font-medium" style={{ color }}>{fmtMetric(g.metric, g.actual)}/{fmtMetric(g.metric, g.target)} ({Math.round(g.raw)}%)</span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium" style={{ color }}>{fmtMetric(g.metric, g.actual)}/{fmtMetric(g.metric, g.target)} ({Math.round(g.raw)}%)</span>
+                          <button type="button" onClick={() => editGoal(g)} title="编辑指标" aria-label={`编辑${g.metric}`}
+                            className="rounded-lg p-1.5 text-slate-400 transition hover:bg-indigo-50 hover:text-indigo-600">
+                            <Pencil size={15} />
+                          </button>
+                        </div>
                       </div>
                       <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
                         <div className="h-full rounded-full" style={{ width: Math.min(100, g.raw) + '%', background: color }} />
@@ -338,8 +364,8 @@ export default function Performance() {
         </div>
       )}
 
-      <Modal open={modal} onClose={() => setModal(false)} title="设定 KPI 指标"
-        footer={<><Button onClick={() => setModal(false)}>取消</Button><Button variant="primary" onClick={saveGoal}>保存</Button></>}>
+      <Modal open={modal} onClose={() => setModal(false)} title={form.id ? '编辑 KPI 指标' : '设定 KPI 指标'}
+        footer={<><Button onClick={() => setModal(false)}>取消</Button><Button variant="primary" onClick={saveGoal} disabled={saving}>{saving ? '保存中…' : '保存'}</Button></>}>
         <form onSubmit={saveGoal} className="grid grid-cols-2 gap-4">
           <Field label="运营人员">
             <select className={inputClass} value={form.operator} onChange={(e) => setForm({ ...form, operator: e.target.value })}>
