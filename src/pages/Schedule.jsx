@@ -322,6 +322,56 @@ export default function Schedule() {
     await load()
   }
 
+  // 一键真实发布到该排期剩余的全部账号：先逐个平台预检授权，再依次发布并汇总结果。
+  async function publishAll(p) {
+    const media = ['video', 'reels', 'story'].includes(String(p.content_type || '').toLowerCase())
+      ? p.asset_url : (p.thumbnail_url || p.asset_url)
+    if (!media) { alert(`请先为「${p.title || '未命名'}」添加可公网访问的发布素材`); return }
+    const jobs = publicationJobs.filter((j) => j.plan_id === p.id)
+    const remaining = planAccountIds(p)
+      .map((id) => accountMap[id])
+      .filter((a) => a && !publishedIds(p).includes(a.id) && jobs.find((j) => j.account_id === a.id)?.status !== 'published')
+    if (!remaining.length) { alert('所选账号均已发布'); return }
+    const names = remaining.map((a) => `${platformMeta(a.platform).label}（${a.display_name || a.handle}）`).join('\n')
+    if (!confirm(`确认一键发布「${p.title || '未命名'}」到以下 ${remaining.length} 个账号？\n\n${names}\n\n发布后内容可能立即对外可见。`)) return
+
+    const batchKey = `${p.id}:all`
+    setPublishingKey(batchKey)
+    const preflightFailures = []
+    for (const acc of remaining) {
+      const { data, error } = await supabase.functions.invoke('publish-content', {
+        body: { action: 'capabilities', plan_id: p.id, account_id: acc.id },
+      })
+      if (error || !data?.ok) preflightFailures.push(`${acc.display_name || acc.handle}：${data?.error || error?.message || '授权检查失败'}`)
+    }
+    if (preflightFailures.length) {
+      setPublishingKey('')
+      alert(`发布前检查未通过，尚未发布任何内容：\n\n${preflightFailures.join('\n')}`)
+      await load()
+      return
+    }
+
+    const results = []
+    for (const acc of remaining) {
+      const existing = jobs.find((j) => j.account_id === acc.id)
+      const action = existing?.status === 'processing' ? 'check' : 'publish'
+      const { data, error } = await supabase.functions.invoke('publish-content', {
+        body: { action, plan_id: p.id, account_id: acc.id },
+      })
+      const label = acc.display_name || acc.handle || platformMeta(acc.platform).label
+      if (error || !data?.ok) results.push({ label, status: 'failed', message: data?.error || error?.message || '未知错误' })
+      else results.push({ label, status: data.job?.status || 'published' })
+    }
+    setPublishingKey('')
+    await load()
+    const published = results.filter((r) => r.status === 'published')
+    const processing = results.filter((r) => ['publishing', 'processing'].includes(r.status))
+    const failed = results.filter((r) => r.status === 'failed')
+    const lines = [`发布成功 ${published.length} 个`, `处理中 ${processing.length} 个`, `失败 ${failed.length} 个`]
+    if (failed.length) lines.push('', ...failed.map((r) => `${r.label}：${r.message}`))
+    alert(lines.join('\n'))
+  }
+
   async function checkPublication(p, acc) {
     const key = `${p.id}:${acc.id}`
     setPublishingKey(key)
@@ -364,7 +414,7 @@ export default function Schedule() {
 
   const accountsForBrand = accounts.filter((a) => !form.brand_id || a.brand_id === form.brand_id)
 
-  const shared = { brandMap, accountMap, openEdit, remove, submitReview, approve, reject: (p) => setRejectFor(p), reopen, markPublished, markAccountPublished, publishAccount, checkPublication, publicationJobs, publishingKey, clearOverdue, isAdmin, profile, readOnly }
+  const shared = { brandMap, accountMap, openEdit, remove, submitReview, approve, reject: (p) => setRejectFor(p), reopen, markPublished, markAccountPublished, publishAccount, publishAll, checkPublication, publicationJobs, publishingKey, clearOverdue, isAdmin, profile, readOnly }
 
   return (
     <div>
@@ -567,18 +617,21 @@ export default function Schedule() {
 }
 
 /* ---------------- 排期卡片操作区 ---------------- */
-function PlanActions({ p, isAdmin, profile, accountMap, openEdit, remove, submitReview, approve, reject, reopen, markPublished, markAccountPublished, publishAccount, checkPublication, publicationJobs, publishingKey, clearOverdue }) {
+function PlanActions({ p, isAdmin, profile, accountMap, openEdit, remove, submitReview, approve, reject, reopen, markPublished, markAccountPublished, publishAccount, publishAll, checkPublication, publicationJobs, publishingKey, clearOverdue }) {
   const iconBtn = 'inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium transition'
   const accs = planAccountIds(p).map((id) => accountMap?.[id]).filter(Boolean)
   const pub = publishedIds(p)
   const canSelfApprove = profile?.role === 'operator' &&
     String(p.assignee_email || '').trim().toLowerCase() === String(profile?.email || '').trim().toLowerCase()
+  const remainingCount = accs.filter((a) => !pub.includes(a.id) && publicationJobs?.find((j) => j.plan_id === p.id && j.account_id === a.id)?.status !== 'published').length
+  const batchBusy = publishingKey === `${p.id}:all`
   return (
     <div className="space-y-1.5">
       {/* 审核通过后：逐账号发布进度 */}
       {p.status === 'approved' && accs.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1">
-          <span className="text-[11px] text-slate-400">发布进度 {pub.filter((id) => planAccountIds(p).includes(id)).length}/{accs.length}：</span>
+        <div className="space-y-1.5">
+          <div className="flex flex-wrap items-center gap-1">
+            <span className="text-[11px] text-slate-400">发布进度 {pub.filter((id) => planAccountIds(p).includes(id)).length}/{accs.length}：</span>
           {accs.map((a) => {
             const done = pub.includes(a.id)
             const m = platformMeta(a.platform)
@@ -590,7 +643,7 @@ function PlanActions({ p, isAdmin, profile, accountMap, openEdit, remove, submit
               <button key={a.id} disabled={busy && publishingKey === `${p.id}:${a.id}`} onClick={() => checkPublication(p, a)} className="inline-flex items-center gap-1 rounded-lg bg-blue-50 px-2 py-1 text-xs text-blue-600 hover:bg-blue-100 disabled:opacity-50" title="点击查询平台处理结果"><Loader2 size={12} className="animate-spin" />{a.display_name || a.handle} 处理中 · 查询</button>
             ) : (
               <span key={a.id} className="inline-flex items-center gap-1">
-                <button disabled={busy} onClick={() => publishAccount(p, a)} className={`${iconBtn} bg-brand-50 text-brand-700 hover:bg-brand-100 disabled:opacity-50`} title={job?.error_message || `发布到 ${a.display_name || a.handle}`}>
+                <button disabled={busy || batchBusy} onClick={() => publishAccount(p, a)} className={`${iconBtn} bg-brand-50 text-brand-700 hover:bg-brand-100 disabled:opacity-50`} title={job?.error_message || `发布到 ${a.display_name || a.handle}`}>
                   {busy ? <Loader2 size={12} className="animate-spin" /> : <m.Icon size={12} />}发布到 {a.display_name || a.handle}
                 </button>
                 {['failed', 'blocked'].includes(job?.status) && <span className="max-w-48 truncate text-[11px] text-red-500" title={job.error_message}>失败：{job.error_message}</span>}
@@ -598,6 +651,13 @@ function PlanActions({ p, isAdmin, profile, accountMap, openEdit, remove, submit
               </span>
             )
           })}
+          </div>
+          {remainingCount > 0 && (
+            <button disabled={batchBusy} onClick={() => publishAll(p)} className={`${iconBtn} bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50`}>
+              {batchBusy ? <Loader2 size={12} className="animate-spin" /> : <Rocket size={12} />}
+              {batchBusy ? '正在发布…' : `一键发布到全部平台（${remainingCount}）`}
+            </button>
+          )}
         </div>
       )}
       <div className="flex flex-wrap items-center gap-1">
