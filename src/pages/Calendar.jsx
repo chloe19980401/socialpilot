@@ -4,6 +4,8 @@ import { supabase } from '../lib/supabase'
 import { Card } from '../components/ui/Card'
 import { Button, Tabs } from '../components/ui/Common'
 import { WEEKDAYS_CN, formatDate } from '../lib/format'
+import FestivalBanner from '../components/FestivalBanner'
+import { festivalsOn, FESTIVAL_TYPES } from '../lib/festivals'
 
 function monthMatrix(year, month) {
   const first = new Date(year, month, 1)
@@ -43,6 +45,8 @@ export default function Calendar() {
 
   return (
     <div>
+      <FestivalBanner />
+
       <div className="mb-5 flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-1">
           <Button onClick={() => setCursor(new Date(y, m - 1, 1))}><ChevronLeft size={16} /></Button>
@@ -67,12 +71,16 @@ export default function Calendar() {
               const inMonth = d.getMonth() === m
               const isToday = d.toDateString() === today.toDateString()
               const dayPosts = postsOn(d)
+              const dayFests = festivalsOn(d)
               return (
                 <div key={i} className={`min-h-[96px] border-b border-r border-slate-100 p-2 ${inMonth ? '' : 'bg-slate-50/50'}`}>
                   <div className={`mb-1 inline-flex h-6 w-6 items-center justify-center rounded-full text-sm ${isToday ? 'bg-brand-600 font-semibold text-white' : inMonth ? 'text-slate-700' : 'text-slate-300'}`}>
                     {d.getDate()}
                   </div>
                   <div className="space-y-1">
+                    {dayFests.map((f) => (
+                      <div key={f.name} title={`${f.en} · ${f.region}`} className={`truncate rounded px-1.5 py-0.5 text-[11px] ${FESTIVAL_TYPES[f.type].chip} ${inMonth ? '' : 'opacity-50'}`}>{f.name}</div>
+                    ))}
                     {dayPosts.slice(0, 3).map((p) => (
                       <div key={p.id} className="truncate rounded bg-brand-50 px-1.5 py-0.5 text-[11px] text-brand-700">{p.title || '帖子'}</div>
                     ))}
@@ -101,8 +109,10 @@ export default function Calendar() {
               {cells.map((d, i) => {
                 const inMonth = d.getMonth() === m
                 const isToday = d.toDateString() === today.toDateString()
+                const fest = festivalsOn(d)[0]
                 return (
-                  <div key={i} className="py-1.5">
+                  <div key={i} className="relative py-1.5" title={fest ? fest.name : undefined}>
+                    {fest && inMonth && <span className={`absolute bottom-0.5 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full ${FESTIVAL_TYPES[fest.type].dot}`} />}
                     <span className={`inline-flex h-7 w-7 items-center justify-center rounded-full ${isToday ? 'bg-brand-600 font-semibold text-white' : inMonth ? 'text-slate-600' : 'text-slate-300'}`}>
                       {d.getDate()}
                     </span>
