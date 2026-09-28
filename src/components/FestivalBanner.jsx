@@ -10,7 +10,7 @@ function countdown(days, ongoing) {
   return `${days} 天后`
 }
 
-// 日历顶部横幅：提醒接下来 3 个世界节日 / 营销活动
+// 日历顶部横幅：提醒接下来 3 个世界节日 / 营销活动（手机端只显示最近 1 个）
 export default function FestivalBanner({ count = 3 }) {
   const list = useMemo(() => upcomingFestivals(new Date(), count), [count])
   if (list.length === 0) return null
@@ -30,7 +30,7 @@ export default function FestivalBanner({ count = 3 }) {
           return (
             <div
               key={f.name + d.toISOString()}
-              className={`flex gap-3 rounded-xl p-3 ${i === 0 ? 'bg-white text-slate-800' : 'bg-white/10 text-white'}`}
+              className={`${i === 0 ? 'flex' : 'hidden md:flex'} gap-3 rounded-xl p-3 ${i === 0 ? 'bg-white text-slate-800' : 'bg-white/10 text-white'}`}
             >
               <div className={`flex w-14 shrink-0 flex-col items-center justify-center rounded-lg py-1.5 ${i === 0 ? 'bg-brand-50 text-brand-700' : 'bg-white/15'}`}>
                 <div className="text-[11px] leading-none opacity-80">{d.getMonth() + 1}月</div>
