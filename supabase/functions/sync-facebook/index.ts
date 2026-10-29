@@ -22,19 +22,22 @@ function canonicalUrl(html: string): string {
 }
 
 async function candidatesFor(post: any): Promise<string[]> {
-  const direct = ids(`${post.external_id || ''} ${post.url || ''}`)
-  if (direct.length || !post.url) return direct
+  // Prefer the current URL over a previously stored external_id. This avoids
+  // refreshing the old Facebook object after an operator replaces the link.
+  const urlIds = ids(post.url || '')
+  if (urlIds.length) return [...new Set([...urlIds, ...ids(post.external_id || '')])]
+  if (!post.url) return ids(post.external_id || '')
   try {
     const r = await fetch(post.url.trim(), {
       redirect: 'follow',
       headers: { 'User-Agent': 'Mozilla/5.0' },
     })
     const finalIds = ids(r.url)
-    if (finalIds.length) return finalIds
+    if (finalIds.length) return [...new Set([...finalIds, ...ids(post.external_id || '')])]
     const canonical = canonicalUrl(await r.text())
-    return ids(canonical)
+    return [...new Set([...ids(canonical), ...ids(post.external_id || '')])]
   } catch {
-    return []
+    return ids(post.external_id || '')
   }
 }
 
@@ -63,7 +66,7 @@ Deno.serve(async (req) => {
 
   const db = admin()
   const { data: accounts } = await db.from('accounts').select('*').ilike('platform', 'facebook')
-  const { data: posts } = await db.from('posts').select('id, url, external_id').ilike('platform', 'facebook')
+  const { data: posts } = await db.from('posts').select('id, url, external_id, title, published_at, likes, comments, shares, views').ilike('platform', 'facebook')
   let processed = 0, failed = 0, postsRefreshed = 0
   const errors: string[] = []
 
@@ -74,7 +77,6 @@ Deno.serve(async (req) => {
     if (!candidates.length) {
       failed++
       errors.push(`${post.id}: 无法从 Facebook 分享链接解析帖子 ID`)
-      await db.from('posts').update({ views: null }).eq('id', post.id)
       continue
     }
     let item: any = null
@@ -86,22 +88,22 @@ Deno.serve(async (req) => {
     if (!item) {
       failed++
       if (lastError) errors.push(`${post.id}: ${lastError}`)
-      // A share URL may be valid in the browser but not resolvable by the Graph API.
-      // Do not present an unknown playback count as a confirmed zero.
-      await db.from('posts').update({ views: null }).eq('id', post.id)
+      // A temporary Graph error must never erase the last successfully synced
+      // metrics. Keep the existing snapshot and report the failure in sync_logs.
       continue
     }
-    await db.from('posts').update({
-      external_id: String(item.id), url: item.permalink_url || item.link || post.url || undefined,
-      title: (item.message || item.title || item.description || item.name)?.slice(0, 200) || undefined,
-      published_at: item.created_time || undefined,
-      likes: Number(item.likes?.summary?.total_count || 0),
-      comments: Number(item.comments?.summary?.total_count || 0),
-      shares: Number(item.shares?.count || 0),
-      // Photos/text posts do not have a playback metric. Store null instead of
-      // leaving a misleading zero from the database default.
-      views: item.views != null ? Number(item.views || 0) : null,
-    }).eq('id', post.id)
+    const update: Record<string, unknown> = { external_id: String(item.id) }
+    if (item.permalink_url || item.link) update.url = item.permalink_url || item.link
+    const title = (item.message || item.title || item.description || item.name)?.slice(0, 200)
+    if (title) update.title = title
+    if (item.created_time) update.published_at = item.created_time
+    if (item.likes?.summary?.total_count != null) update.likes = Number(item.likes.summary.total_count)
+    if (item.comments?.summary?.total_count != null) update.comments = Number(item.comments.summary.total_count)
+    if (item.shares?.count != null) update.shares = Number(item.shares.count)
+    // Meta does not expose playback for every object type or token scope.
+    // Missing means unknown, not zero: preserve the last successful value.
+    if (item.views != null) update.views = Number(item.views)
+    await db.from('posts').update(update).eq('id', post.id)
     postsRefreshed++
   }
 

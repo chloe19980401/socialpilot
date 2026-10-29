@@ -44,7 +44,15 @@ function parseExternalId(url, platform) {
     if (platform === 'youtube') return u.searchParams.get('v') || u.pathname.split('/').filter(Boolean).pop() || null
     if (platform === 'tiktok') { const m = u.pathname.match(/\/(?:video|photo)\/(\d+)/); return m ? m[1] : null }
     if (platform === 'instagram') { const m = u.pathname.match(/\/(?:p|reel|tv)\/([^/]+)/); return m ? m[1] : null }
-    if (platform === 'facebook') { const m = u.pathname.match(/\/(?:posts|videos|photos)\/([^/]+)/); return m ? m[1] : null }
+    if (platform === 'facebook') {
+      for (const key of ['story_fbid', 'fbid', 'v']) {
+        const value = u.searchParams.get(key)
+        if (value) return value
+      }
+      const m = u.pathname.match(/\/(?:posts|videos|photos|reel|watch)\/([^/?]+)/)
+      if (m) return m[1]
+      return u.pathname.split('/').filter(Boolean).findLast((part) => /^\d{8,}$/.test(part)) || null
+    }
   } catch { /* ignore */ }
   return null
 }
