@@ -93,6 +93,7 @@ Deno.serve(async (req) => {
   const { scope = 'accounts' } = await req.json().catch(() => ({}))
   const db = admin()
   let processed = 0, failed = 0, postsUpserted = 0
+  const postErrors: string[] = []
 
   if (scope === 'competitors') {
     await writeLog(db, 'tiktok', 'competitors', 'error', 0, 0, '官方接口不支持抓取任意竞品，需手动录入或第三方数据商')
@@ -156,12 +157,16 @@ Deno.serve(async (req) => {
         : await db.from('posts').upsert(rec, { onConflict: 'account_id,external_id' })
       if (!error) {
         postsUpserted++
+      } else {
+        failed++
+        postErrors.push(`${vid}: ${error.message}`)
       }
     }
   } catch (_e) {
     failed++
   }
 
-  await writeLog(db, 'tiktok', scope, failed ? 'partial' : 'success', processed, failed, `posts_upserted=${postsUpserted}`)
-  return json({ platform: 'tiktok', scope, processed, failed, posts_upserted: postsUpserted })
+  const message = `posts_upserted=${postsUpserted}${postErrors.length ? `; ${postErrors.slice(0, 3).join(' | ')}` : ''}`
+  await writeLog(db, 'tiktok', scope, failed ? 'partial' : 'success', processed, failed, message)
+  return json({ platform: 'tiktok', scope, processed, failed, posts_upserted: postsUpserted, errors: postErrors.slice(0, 5) })
 })

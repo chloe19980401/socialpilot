@@ -84,7 +84,7 @@ Deno.serve(async (req) => {
 
   const { scope = 'all' } = await req.json().catch(() => ({}))
   const db = admin()
-  let processed = 0, failed = 0
+  let processed = 0, failed = 0, postsImported = 0, postsRefreshed = 0
 
   if (scope === 'competitors' || scope === 'all') {
     const { data: rows } = await db.from('competitors').select('*').ilike('platform', 'instagram')
@@ -121,7 +121,25 @@ Deno.serve(async (req) => {
             p.external_id === String(item.id) ||
             (apiCode && (p.external_id === apiCode || instagramShortcode(p.url || '') === apiCode))
           )
-          if (!post) continue
+          if (!post) {
+            const { error } = await db.from('posts').insert({
+              account_id: row.id,
+              brand_id: row.brand_id || null,
+              platform: 'instagram',
+              external_id: String(item.id),
+              title: (item.caption || 'Instagram 帖子').slice(0, 200),
+              content: item.caption || null,
+              url: item.permalink || null,
+              thumbnail_url: item.thumbnail_url || item.media_url || null,
+              published_at: item.timestamp || null,
+              likes: Number(item.like_count || 0),
+              comments: Number(item.comments_count || 0),
+              status: 'published',
+            })
+            if (error) failed++
+            else postsImported++
+            continue
+          }
           const insights = await mediaInsights(item)
           const upd: Record<string, unknown> = {
             external_id: String(item.id),
@@ -138,12 +156,13 @@ Deno.serve(async (req) => {
           if (item.timestamp) upd.published_at = item.timestamp
           if (item.thumbnail_url || item.media_url) upd.thumbnail_url = item.thumbnail_url || item.media_url
           await db.from('posts').update(upd).eq('id', post.id)
+          postsRefreshed++
         }
         processed++
       } catch (_e) { failed++ }
     }
   }
 
-  await writeLog(db, 'instagram', scope, failed ? 'partial' : 'success', processed, failed)
-  return json({ platform: 'instagram', scope, processed, failed })
+  await writeLog(db, 'instagram', scope, failed ? 'partial' : 'success', processed, failed, `posts_imported=${postsImported}; posts_refreshed=${postsRefreshed}`)
+  return json({ platform: 'instagram', scope, processed, failed, posts_imported: postsImported, posts_refreshed: postsRefreshed })
 })

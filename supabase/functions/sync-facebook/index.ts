@@ -58,6 +58,14 @@ async function graphObject(id: string) {
   throw new Error(lastError)
 }
 
+async function publishedPosts(pageId: string) {
+  const fields = 'id,created_time,message,permalink_url,likes.limit(0).summary(true),comments.limit(0).summary(true),shares'
+  const r = await fetch(`${GRAPH}/${pageId}/published_posts?fields=${encodeURIComponent(fields)}&limit=100&access_token=${encodeURIComponent(TOKEN)}`)
+  const d = await r.json()
+  if (d.error) throw new Error(d.error.message || 'Facebook published posts request failed')
+  return d.data ?? []
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
   if (!TOKEN) return json({ error: '未配置 FB_ACCESS_TOKEN / IG_ACCESS_TOKEN' }, 400)
@@ -67,8 +75,46 @@ Deno.serve(async (req) => {
   const db = admin()
   const { data: accounts } = await db.from('accounts').select('*').ilike('platform', 'facebook')
   const { data: posts } = await db.from('posts').select('id, url, external_id, title, published_at, likes, comments, shares, views').ilike('platform', 'facebook')
-  let processed = 0, failed = 0, postsRefreshed = 0
+  let processed = 0, failed = 0, postsRefreshed = 0, postsImported = 0
   const errors: string[] = []
+
+  // Import newly published Page posts first. Some older tokens can read known
+  // object IDs but not the Page feed; keep that case non-destructive and still
+  // refresh every already stored post below.
+  for (const account of accounts ?? []) {
+    if (!account.external_id) continue
+    try {
+      const feed = await publishedPosts(String(account.external_id))
+      for (const item of feed) {
+        const objectId = String(item.id || '')
+        const numericId = objectId.split('_').pop() || objectId
+        const exists = (posts ?? []).some((p: any) =>
+          p.external_id === objectId || p.external_id === numericId ||
+          ids(p.url || '').includes(numericId)
+        )
+        if (exists) continue
+        const { error } = await db.from('posts').insert({
+          account_id: account.id,
+          brand_id: account.brand_id || null,
+          platform: 'facebook',
+          external_id: objectId,
+          title: (item.message || 'Facebook 帖子').slice(0, 200),
+          content: item.message || null,
+          url: item.permalink_url || null,
+          published_at: item.created_time || null,
+          likes: Number(item.likes?.summary?.total_count || 0),
+          comments: Number(item.comments?.summary?.total_count || 0),
+          shares: Number(item.shares?.count || 0),
+          status: 'published',
+        })
+        if (error) failed++
+        else postsImported++
+      }
+    } catch (e) {
+      failed++
+      errors.push(`Page ${account.external_id}: ${String(e?.message || e)}`)
+    }
+  }
 
   // The current Meta token can read known Page objects but lacks
   // pages_read_engagement for /PAGE/feed. Query each stored object id directly.
@@ -111,7 +157,7 @@ Deno.serve(async (req) => {
     await db.from('accounts').update({ connected: true, last_synced_at: new Date().toISOString() }).ilike('platform', 'facebook')
     processed = 1
   }
-  const message = `posts_refreshed=${postsRefreshed}${errors.length ? `; ${errors.slice(0, 3).join(' | ')}` : ''}`
+  const message = `posts_imported=${postsImported}; posts_refreshed=${postsRefreshed}${errors.length ? `; ${errors.slice(0, 3).join(' | ')}` : ''}`
   await writeLog(db, 'facebook', scope, failed && !postsRefreshed ? 'partial' : 'success', processed, failed, message)
-  return json({ platform: 'facebook', scope, processed, failed, posts_refreshed: postsRefreshed, errors: errors.slice(0, 5) })
+  return json({ platform: 'facebook', scope, processed, failed, posts_imported: postsImported, posts_refreshed: postsRefreshed, errors: errors.slice(0, 5) })
 })
