@@ -29,6 +29,9 @@ export default function Settings() {
   const [form, setForm] = useState({ name: '', email: '', role: 'operator' })
   const [updatingId, setUpdatingId] = useState(null)
   const [actionError, setActionError] = useState('')
+  const [actionSuccess, setActionSuccess] = useState('')
+  const [resetTarget, setResetTarget] = useState(null)
+  const [resetForm, setResetForm] = useState({ password: '', confirm: '' })
 
   async function loadUsers() {
     const { data } = await supabase.from('profiles').select('*').order('created_at')
@@ -56,6 +59,7 @@ export default function Settings() {
     if (disabling && !window.confirm(`确定禁用 ${user.name || user.email}？禁用后该账号将无法登录。`)) return
     setUpdatingId(user.id)
     setActionError('')
+    setActionSuccess('')
     const { data, error } = await supabase.functions.invoke('admin-user-status', {
       body: { user_id: user.id, disabled: disabling },
     })
@@ -63,6 +67,46 @@ export default function Settings() {
       setActionError(data?.error || error?.message || '操作失败')
     } else {
       await loadUsers()
+    }
+    setUpdatingId(null)
+  }
+
+  function openResetPassword(user) {
+    setActionError('')
+    setActionSuccess('')
+    setResetTarget(user)
+    setResetForm({ password: '', confirm: '' })
+  }
+
+  async function resetPassword(e) {
+    e.preventDefault()
+    if (!isAdmin || !resetTarget || updatingId) return
+    if (resetForm.password.length < 8 || resetForm.password.length > 72) {
+      setActionError('密码长度必须为 8–72 位')
+      return
+    }
+    if (resetForm.password !== resetForm.confirm) {
+      setActionError('两次输入的密码不一致')
+      return
+    }
+    const label = resetTarget.name || usernameOf(resetTarget.email)
+    if (!window.confirm(`确定重置 ${label} 的密码？保存后旧密码立即失效。`)) return
+
+    setUpdatingId(resetTarget.id)
+    setActionError('')
+    setActionSuccess('')
+    const { data, error } = await supabase.functions.invoke('admin-reset-password', {
+      body: { user_id: resetTarget.id, password: resetForm.password },
+    })
+    if (error || data?.error) {
+      setActionError(data?.error || error?.message || '密码重置失败')
+    } else {
+      const newPassword = resetForm.password
+      setCreds((current) => ({ ...current, [resetTarget.id]: newPassword }))
+      setActionSuccess(data?.warning || `${label} 的密码已重置`)
+      setResetTarget(null)
+      setResetForm({ password: '', confirm: '' })
+      if (data?.credentials_updated) await loadUsers()
     }
     setUpdatingId(null)
   }
@@ -115,6 +159,7 @@ export default function Settings() {
 
               <div className="mt-4 space-y-2">
                 {actionError && <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{actionError}</div>}
+                {actionSuccess && <div className="rounded-lg bg-green-50 px-3 py-2 text-sm text-green-700">{actionSuccess}</div>}
                 {users.length === 0 && <div className="py-6 text-center text-sm text-slate-400">暂无账号</div>}
                 {users.map((u) => {
                   const open = !!revealed[u.id]
@@ -147,12 +192,22 @@ export default function Settings() {
                         )}
                       </div>
                       {isAdmin && open && (
-                        <div className="flex items-center justify-between border-t border-slate-100 px-3 py-2.5 text-sm">
-                          <span className="text-slate-500">账号密码</span>
-                          <span className="font-mono text-slate-800">
-                            <span className="mr-4">用户名：{usernameOf(u.email)}</span>
-                            密码：{creds[u.id] || <span className="text-slate-300">未记录</span>}
-                          </span>
+                        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-3 py-2.5 text-sm">
+                          <div>
+                            <span className="mr-4 text-slate-500">账号密码</span>
+                            <span className="font-mono text-slate-800">
+                              <span className="mr-4">用户名：{usernameOf(u.email)}</span>
+                              密码：{creds[u.id] || <span className="text-slate-300">未记录</span>}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            disabled={updatingId === u.id}
+                            onClick={() => openResetPassword(u)}
+                            className="inline-flex items-center gap-1 rounded-lg bg-brand-50 px-2.5 py-1.5 text-xs font-medium text-brand-700 hover:bg-brand-100 disabled:opacity-50"
+                          >
+                            <KeyRound size={14} /> 重置密码
+                          </button>
                         </div>
                       )}
                     </div>
@@ -185,6 +240,25 @@ export default function Settings() {
             </select>
           </Field>
           <p className="text-xs text-slate-400">提示：此处仅写入用户资料。真正可登录的密码账号需管理员在 Supabase 后台或服务端接口创建（详见 README）。</p>
+        </form>
+      </Modal>
+
+      <Modal
+        open={!!resetTarget}
+        onClose={() => !updatingId && setResetTarget(null)}
+        title={`重置密码${resetTarget ? ` · ${resetTarget.name || usernameOf(resetTarget.email)}` : ''}`}
+        footer={<><Button onClick={() => setResetTarget(null)} disabled={!!updatingId}>取消</Button><Button variant="primary" onClick={resetPassword} disabled={!!updatingId}>{updatingId ? '保存中…' : '确认重置'}</Button></>}
+      >
+        <form onSubmit={resetPassword} className="space-y-4">
+          {actionError && <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{actionError}</div>}
+          <p className="text-sm text-slate-500">用户名：<span className="font-mono text-slate-800">{usernameOf(resetTarget?.email)}</span></p>
+          <Field label="新密码">
+            <input type="password" autoComplete="new-password" className={inputClass} value={resetForm.password} onChange={(e) => setResetForm({ ...resetForm, password: e.target.value })} placeholder="8–72 位" />
+          </Field>
+          <Field label="确认新密码">
+            <input type="password" autoComplete="new-password" className={inputClass} value={resetForm.confirm} onChange={(e) => setResetForm({ ...resetForm, confirm: e.target.value })} placeholder="再输入一次" />
+          </Field>
+          <p className="text-xs text-amber-600">确认后旧密码立即失效，仅管理员可执行此操作。</p>
         </form>
       </Modal>
     </div>

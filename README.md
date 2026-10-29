@@ -83,6 +83,12 @@ npm run dev
 1. Supabase 后台 **Authentication → Users → Add user**（推荐）
 2. 用 service_role key 写一个服务端 / Edge Function 调 `auth.admin.createUser`
 
+### 管理员重置密码
+
+已有账号可在 **设置 → 用户管理** 中展开成员，点击「重置密码」。前端调用
+`admin-reset-password` Edge Function，由服务端校验当前用户必须是未禁用的管理员，不会向浏览器暴露
+`service_role` 密钥。新密码要求 8–72 位，重置后旧密码立即失效。
+
 ## 部署
 
 本项目已配好 **GitHub Pages 自动部署**，目标子域名 `socialwonly.foreverdoodle.com`（不影响根域名上的原系统）。
