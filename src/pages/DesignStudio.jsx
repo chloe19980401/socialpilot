@@ -17,6 +17,9 @@ import {
 
 const planAccountIds = (p) => (p.account_ids?.length ? p.account_ids : (p.account_id ? [p.account_id] : []))
 const isOverdue = (d) => d && new Date(d) < new Date(new Date().toDateString())
+const DESIGN_REFERENCE = {
+  'daiyuting@foreverdoodle.com': { email: 'zlzl@foreverdoodle.com', name: '赵琳' },
+}
 
 // 用时：已完成算 开始→完成，进行中算 开始→今天（首日计为第 1 天）；开始日未到则显示「—」
 function durationLabel(r) {
@@ -37,9 +40,11 @@ export default function DesignStudio() {
   const me = profile?.email || ''
   const myName = profile?.name || (me ? me.split('@')[0] : '设计师')
   const isAdmin = profile?.role === 'admin'
+  const referenceOwner = DESIGN_REFERENCE[me]
 
   const [plans, setPlans] = useState([])
   const [requests, setRequests] = useState([])
+  const [referencePlans, setReferencePlans] = useState([])
   const [brands, setBrands] = useState([])
   const [accounts, setAccounts] = useState([])
   const [loading, setLoading] = useState(true)
@@ -62,12 +67,16 @@ export default function DesignStudio() {
       supabase.from('accounts').select('id, display_name, handle, platform, brand_id'),
     ])
     // 管理员看全部已指派设计师的排期；设计师只看指派给自己的。已发布的设计已无意义，不再进设计台
-    setPlans((pl || []).filter((p) => (isAdmin ? !!p.designer_email : p.designer_email === me) && p.status !== 'published'))
+    const allPlans = pl || []
+    setPlans(allPlans.filter((p) => (isAdmin ? !!p.designer_email : p.designer_email === me) && p.status !== 'published'))
+    setReferencePlans(referenceOwner
+      ? allPlans.filter((p) => p.designer_email === referenceOwner.email).sort((a, b) => new Date(b.scheduled_at || b.created_at) - new Date(a.scheduled_at || a.created_at))
+      : [])
     setRequests(rq || [])
     setBrands(br || [])
     setAccounts(ac || [])
     setLoading(false)
-  }, [me, isAdmin])
+  }, [me, isAdmin, referenceOwner])
   useEffect(() => { load() }, [load])
 
   const brandMap = useMemo(() => Object.fromEntries(brands.map((b) => [b.id, b])), [brands])
@@ -272,6 +281,37 @@ export default function DesignStudio() {
               </tbody>
             </table>
           </div>
+        </Card>
+      )}
+
+      {referenceOwner && (
+        <Card className="mt-5 p-0 overflow-hidden">
+          <div className="border-b border-slate-100 px-4 py-3">
+            <div className="font-semibold text-slate-800">{referenceOwner.name}的历史排期 · 只读参考</div>
+            <div className="mt-0.5 text-xs text-slate-400">保留原设计师的标题、平台、发布时间和完成状态，不会计入你的任务。</div>
+          </div>
+          {referencePlans.length === 0 ? (
+            <div className="px-4 py-8 text-center text-sm text-slate-400">暂无历史排期</div>
+          ) : (
+            <div className="max-h-[420px] overflow-auto">
+              <table className="w-full min-w-[720px] text-sm">
+                <thead className="sticky top-0 bg-white">
+                  <tr className="border-b border-slate-100 text-left text-xs text-slate-400">
+                    <th className="px-4 py-3 font-medium">标题</th><th className="px-4 py-3 font-medium">平台</th>
+                    <th className="px-4 py-3 font-medium">发布时间</th><th className="px-4 py-3 font-medium">设计状态</th>
+                  </tr>
+                </thead>
+                <tbody>{referencePlans.map((p) => (
+                  <tr key={p.id} className="border-b border-slate-50">
+                    <td className="px-4 py-3 font-medium text-slate-700">{p.title || '未命名'}</td>
+                    <td className="px-4 py-3 text-slate-500">{(p.platforms?.length ? p.platforms : [p.platform]).filter(Boolean).map((x) => platformMeta(x).label).join('、') || '—'}</td>
+                    <td className="px-4 py-3 text-slate-500">{p.scheduled_at ? fmtDateTime(p.scheduled_at) : '—'}</td>
+                    <td className="px-4 py-3"><Badge color={(p.design_status || 'pending') === 'done' ? 'green' : 'slate'}>{(p.design_status || 'pending') === 'done' ? '已完成' : '未完成'}</Badge></td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div>
+          )}
         </Card>
       )}
 
