@@ -45,6 +45,7 @@ export default function DesignStudio() {
   const [plans, setPlans] = useState([])
   const [requests, setRequests] = useState([])
   const [referencePlans, setReferencePlans] = useState([])
+  const [referenceRequests, setReferenceRequests] = useState([])
   const [brands, setBrands] = useState([])
   const [accounts, setAccounts] = useState([])
   const [loading, setLoading] = useState(true)
@@ -72,7 +73,11 @@ export default function DesignStudio() {
     setReferencePlans(referenceOwner
       ? allPlans.filter((p) => p.designer_email === referenceOwner.email).sort((a, b) => new Date(b.scheduled_at || b.created_at) - new Date(a.scheduled_at || a.created_at))
       : [])
-    setRequests(rq || [])
+    const allRequests = rq || []
+    setRequests(allRequests.filter((r) => isAdmin || r.assignee_email === me))
+    setReferenceRequests(referenceOwner
+      ? allRequests.filter((r) => r.assignee_email === referenceOwner.email).sort((a, b) => new Date(b.due_date || b.created_at) - new Date(a.due_date || a.created_at))
+      : [])
     setBrands(br || [])
     setAccounts(ac || [])
     setLoading(false)
@@ -290,15 +295,15 @@ export default function DesignStudio() {
             <div className="font-semibold text-slate-800">{referenceOwner.name}的历史排期 · 只读参考</div>
             <div className="mt-0.5 text-xs text-slate-400">保留原设计师的标题、平台、发布时间和完成状态，不会计入你的任务。</div>
           </div>
-          {referencePlans.length === 0 ? (
+          {referencePlans.length === 0 && referenceRequests.length === 0 ? (
             <div className="px-4 py-8 text-center text-sm text-slate-400">暂无历史排期</div>
           ) : (
             <div className="max-h-[420px] overflow-auto">
               <table className="w-full min-w-[720px] text-sm">
                 <thead className="sticky top-0 bg-white">
                   <tr className="border-b border-slate-100 text-left text-xs text-slate-400">
-                    <th className="px-4 py-3 font-medium">标题</th><th className="px-4 py-3 font-medium">平台</th>
-                    <th className="px-4 py-3 font-medium">发布时间</th><th className="px-4 py-3 font-medium">设计状态</th>
+                    <th className="px-4 py-3 font-medium">标题</th><th className="px-4 py-3 font-medium">来源</th>
+                    <th className="px-4 py-3 font-medium">计划 / 截止</th><th className="px-4 py-3 font-medium">设计状态</th>
                   </tr>
                 </thead>
                 <tbody>{referencePlans.map((p) => (
@@ -307,6 +312,14 @@ export default function DesignStudio() {
                     <td className="px-4 py-3 text-slate-500">{(p.platforms?.length ? p.platforms : [p.platform]).filter(Boolean).map((x) => platformMeta(x).label).join('、') || '—'}</td>
                     <td className="px-4 py-3 text-slate-500">{p.scheduled_at ? fmtDateTime(p.scheduled_at) : '—'}</td>
                     <td className="px-4 py-3"><Badge color={(p.design_status || 'pending') === 'done' ? 'green' : 'slate'}>{(p.design_status || 'pending') === 'done' ? '已完成' : '未完成'}</Badge></td>
+                  </tr>
+                ))}</tbody>
+                <tbody>{referenceRequests.map((r) => (
+                  <tr key={`request-${r.id}`} className="border-b border-slate-50">
+                    <td className="px-4 py-3 font-medium text-slate-700">{r.title || '未命名'}</td>
+                    <td className="px-4 py-3 text-slate-500">{r.category || '手动设计需求'}</td>
+                    <td className="px-4 py-3 text-slate-500">{r.due_date || r.start_date || '—'}</td>
+                    <td className="px-4 py-3"><Badge color={r.status === 'done' ? 'green' : 'slate'}>{r.status === 'done' ? '已完成' : r.status === 'doing' ? '进行中' : '待办'}</Badge></td>
                   </tr>
                 ))}</tbody>
               </table>
