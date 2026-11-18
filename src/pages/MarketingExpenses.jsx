@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   WalletCards, Plus, Pencil, Trash2, Search, SlidersHorizontal,
-  CircleDollarSign, ReceiptText, Gauge, PiggyBank,
+  CircleDollarSign, ReceiptText, Gauge, PiggyBank, Upload, FileText, X,
 } from 'lucide-react'
-import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { Bar, BarChart, CartesianGrid, LabelList, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { supabase } from '../lib/supabase'
+import { recognizeInvoice } from '../lib/invoiceOcr'
 import { useAuth } from '../context/AuthContext'
 import { Card, StatCard } from '../components/ui/Card'
 import PageHeader from '../components/ui/PageHeader'
@@ -32,13 +33,14 @@ const defaultExpenseDate = (year) => {
   const today = new Date().toISOString().slice(0, 10)
   return Number(today.slice(0, 4)) === Number(year) ? today : `${year}-04-01`
 }
-const emptyExpense = (year = 2027) => ({ id: null, category_id: '', expense_date: defaultExpenseDate(year), item: '', amount: '', vendor: '', payment_status: 'paid', invoice_no: '', owner: '', receipt_url: '', notes: '' })
-const emptyBudget = () => ({ id: null, name: '', q2: '', q3: '', q4: '' })
+const emptyExpense = (year = 2027) => ({ id: null, category_id: '', expense_date: defaultExpenseDate(year), item: '', amount: '', vendor: '', payment_status: 'paid', invoice_no: '', owner: '', receipt_url: '', buyer_name: '', seller_name: '', notes: '' })
+const emptyBudget = () => ({ id: null, name: '', q1: '', q2: '', q3: '', q4: '' })
 const money = (n) => new Intl.NumberFormat('zh-CN', { style: 'currency', currency: 'CNY', maximumFractionDigits: 0 }).format(Number(n || 0))
 const wan = (n) => `${(Number(n || 0) / 10000).toLocaleString('zh-CN', { maximumFractionDigits: 1 })} 万`
 const pct = (used, budget) => budget > 0 ? (used / budget) * 100 : 0
 const quarter = (date) => {
   const month = Number(String(date || '').slice(5, 7))
+  if (month >= 1 && month <= 3) return 'Q1'
   if (month >= 4 && month <= 6) return 'Q2'
   if (month >= 7 && month <= 9) return 'Q3'
   if (month >= 10 && month <= 12) return 'Q4'
@@ -57,6 +59,9 @@ export default function MarketingExpenses() {
   const [expenseForm, setExpenseForm] = useState(emptyExpense(2027))
   const [budgetForm, setBudgetForm] = useState(emptyBudget())
   const [saving, setSaving] = useState(false)
+  const [attachmentFile, setAttachmentFile] = useState(null)
+  const [removeAttachment, setRemoveAttachment] = useState(false)
+  const [ocrStatus, setOcrStatus] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
   const [query, setQuery] = useState('')
@@ -76,19 +81,19 @@ export default function MarketingExpenses() {
   useEffect(() => { load() }, [load])
 
   const categoryMap = useMemo(() => Object.fromEntries(categories.map((c) => [c.id, c])), [categories])
-  const totalBudget = useMemo(() => categories.reduce((s, c) => s + Number(c.q2_budget) + Number(c.q3_budget) + Number(c.q4_budget), 0), [categories])
+  const totalBudget = useMemo(() => categories.reduce((s, c) => s + Number(c.q1_budget) + Number(c.q2_budget) + Number(c.q3_budget) + Number(c.q4_budget), 0), [categories])
   const totalSpent = useMemo(() => expenses.reduce((s, e) => s + Number(e.amount), 0), [expenses])
   const pendingAmount = useMemo(() => expenses.filter((e) => e.payment_status !== 'paid').reduce((s, e) => s + Number(e.amount), 0), [expenses])
   const usage = pct(totalSpent, totalBudget)
 
-  const quarterData = useMemo(() => ['Q2', 'Q3', 'Q4'].map((q) => ({
+  const quarterData = useMemo(() => ['Q1', 'Q2', 'Q3', 'Q4'].map((q) => ({
     quarter: q,
     budget: categories.reduce((s, c) => s + Number(c[`${q.toLowerCase()}_budget`] || 0), 0) / 10000,
     actual: expenses.filter((e) => quarter(e.expense_date) === q).reduce((s, e) => s + Number(e.amount), 0) / 10000,
   })), [categories, expenses])
 
   const categoryRows = useMemo(() => categories.map((c) => {
-    const budget = Number(c.q2_budget) + Number(c.q3_budget) + Number(c.q4_budget)
+    const budget = Number(c.q1_budget) + Number(c.q2_budget) + Number(c.q3_budget) + Number(c.q4_budget)
     const actual = expenses.filter((e) => e.category_id === c.id).reduce((s, e) => s + Number(e.amount), 0)
     return { ...c, budget, actual, usage: pct(actual, budget) }
   }), [categories, expenses])
@@ -96,16 +101,19 @@ export default function MarketingExpenses() {
   const filteredExpenses = useMemo(() => expenses.filter((e) => {
     if (categoryFilter !== 'all' && e.category_id !== categoryFilter) return false
     if (statusFilter !== 'all' && e.payment_status !== statusFilter) return false
-    const haystack = `${e.item} ${e.vendor || ''} ${e.invoice_no || ''} ${e.owner || ''}`.toLowerCase()
+    const haystack = `${e.item} ${e.vendor || ''} ${e.buyer_name || ''} ${e.seller_name || ''} ${e.invoice_no || ''} ${e.owner || ''}`.toLowerCase()
     return !query.trim() || haystack.includes(query.trim().toLowerCase())
   }), [expenses, categoryFilter, statusFilter, query])
 
   function openExpense(row = null) {
     setExpenseForm(row ? { ...row, amount: String(row.amount) } : { ...emptyExpense(year), category_id: categories[0]?.id || '' })
+    setAttachmentFile(null)
+    setRemoveAttachment(false)
+    setOcrStatus('')
     setExpenseModal(true)
   }
   function openBudget(c) {
-    setBudgetForm({ id: c.id, name: c.name, q2: Number(c.q2_budget) / 10000, q3: Number(c.q3_budget) / 10000, q4: Number(c.q4_budget) / 10000 })
+    setBudgetForm({ id: c.id, name: c.name, q1: Number(c.q1_budget) / 10000, q2: Number(c.q2_budget) / 10000, q3: Number(c.q3_budget) / 10000, q4: Number(c.q4_budget) / 10000 })
     setBudgetModal(true)
   }
 
@@ -113,28 +121,81 @@ export default function MarketingExpenses() {
     e?.preventDefault()
     if (!expenseForm.category_id || !expenseForm.expense_date || !expenseForm.item.trim() || Number(expenseForm.amount) < 0 || expenseForm.amount === '') return alert('请完整填写项目、日期、费用明细和金额')
     if (Number(expenseForm.expense_date.slice(0, 4)) !== year) return alert(`当前是 ${year} 年预算，费用日期也必须在 ${year} 年`)
+    if (attachmentFile && attachmentFile.size > 20 * 1024 * 1024) return alert('附件不能超过 20MB')
     setSaving(true)
+    let uploadedPath = null
+    let attachment = {}
+    if (attachmentFile) {
+      const safeName = attachmentFile.name.replace(/[^a-zA-Z0-9._-]+/g, '_')
+      uploadedPath = `${year}/${crypto.randomUUID()}-${safeName}`
+      const { error: uploadError } = await supabase.storage.from('marketing-documents').upload(uploadedPath, attachmentFile, { cacheControl: '3600', upsert: false })
+      if (uploadError) { setSaving(false); return alert(`上传失败：${uploadError.message}`) }
+      attachment = { receipt_path: uploadedPath, receipt_name: attachmentFile.name, receipt_type: attachmentFile.type || null, receipt_size: attachmentFile.size }
+    } else if (removeAttachment) {
+      attachment = { receipt_path: null, receipt_name: null, receipt_type: null, receipt_size: null }
+    }
     const payload = {
       category_id: expenseForm.category_id, expense_date: expenseForm.expense_date, item: expenseForm.item.trim(), amount: Number(expenseForm.amount),
       vendor: expenseForm.vendor.trim() || null, payment_status: expenseForm.payment_status, invoice_no: expenseForm.invoice_no.trim() || null,
-      owner: expenseForm.owner.trim() || null, receipt_url: expenseForm.receipt_url.trim() || null, notes: expenseForm.notes.trim() || null,
+      owner: expenseForm.owner.trim() || null, receipt_url: expenseForm.receipt_url.trim() || null,
+      buyer_name: (expenseForm.buyer_name || '').trim() || null, seller_name: (expenseForm.seller_name || '').trim() || null, notes: expenseForm.notes.trim() || null,
+      ...attachment,
       created_by: expenseForm.id ? undefined : profile?.email || null,
     }
     if (expenseForm.id) delete payload.created_by
     const { error: saveError } = expenseForm.id
       ? await supabase.from('marketing_expenses').update(payload).eq('id', expenseForm.id)
       : await supabase.from('marketing_expenses').insert(payload)
+    if (saveError) {
+      if (uploadedPath) await supabase.storage.from('marketing-documents').remove([uploadedPath])
+      setSaving(false)
+      return alert(`保存失败：${saveError.message}`)
+    }
+    if (expenseForm.id && expenseForm.receipt_path && (uploadedPath || removeAttachment)) {
+      await supabase.storage.from('marketing-documents').remove([expenseForm.receipt_path])
+    }
     setSaving(false)
-    if (saveError) return alert(`保存失败：${saveError.message}`)
     setExpenseModal(false); load()
+  }
+
+  async function handleAttachmentSelected(file) {
+    setAttachmentFile(file || null)
+    setRemoveAttachment(false)
+    setOcrStatus('')
+    if (!file || (!file.type.startsWith('image/') && file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf'))) return
+    try {
+      setOcrStatus('准备识别发票…')
+      const result = await recognizeInvoice(file, setOcrStatus)
+      setExpenseForm((current) => ({
+        ...current,
+        buyer_name: result.buyerName || current.buyer_name,
+        seller_name: result.sellerName || current.seller_name,
+        vendor: result.sellerName || current.vendor,
+      }))
+      setOcrStatus(result.buyerName || result.sellerName ? '识别完成，请核对购方和卖方信息' : '未识别到购销方，请手动填写')
+    } catch (ocrError) {
+      console.error(ocrError)
+      setOcrStatus('自动识别失败，可继续上传并手动填写购销方')
+    }
+  }
+
+  async function openAttachment(row) {
+    if (!row.receipt_path) return
+    const { data, error: signedError } = await supabase.storage.from('marketing-documents').createSignedUrl(row.receipt_path, 60)
+    if (signedError) return alert(`打开附件失败：${signedError.message}`)
+    const link = document.createElement('a')
+    link.href = data.signedUrl
+    link.target = '_blank'
+    link.rel = 'noopener noreferrer'
+    link.click()
   }
 
   async function saveBudget(e) {
     e?.preventDefault()
-    const values = [budgetForm.q2, budgetForm.q3, budgetForm.q4].map(Number)
+    const values = [budgetForm.q1, budgetForm.q2, budgetForm.q3, budgetForm.q4].map(Number)
     if (values.some((v) => Number.isNaN(v) || v < 0)) return alert('季度预算不能小于 0')
     setSaving(true)
-    const { error: saveError } = await supabase.from('marketing_budget_categories').update({ q2_budget: values[0] * 10000, q3_budget: values[1] * 10000, q4_budget: values[2] * 10000 }).eq('id', budgetForm.id)
+    const { error: saveError } = await supabase.from('marketing_budget_categories').update({ q1_budget: values[0] * 10000, q2_budget: values[1] * 10000, q3_budget: values[2] * 10000, q4_budget: values[3] * 10000 }).eq('id', budgetForm.id)
     setSaving(false)
     if (saveError) return alert(`保存失败：${saveError.message}`)
     setBudgetModal(false); load()
@@ -144,6 +205,7 @@ export default function MarketingExpenses() {
     if (!window.confirm(`确定删除费用记录「${row.item}」？删除后预算占用会立即减少。`)) return
     const { error: removeError } = await supabase.from('marketing_expenses').delete().eq('id', row.id)
     if (removeError) return alert(`删除失败：${removeError.message}`)
+    if (row.receipt_path) await supabase.storage.from('marketing-documents').remove([row.receipt_path])
     load()
   }
 
@@ -169,7 +231,7 @@ export default function MarketingExpenses() {
       <div className="mt-4 grid gap-4 xl:grid-cols-[1.05fr_1.95fr]">
         <Card>
           <div className="mb-4 font-semibold text-slate-800">季度预算与实际</div>
-          <div className="h-72"><ResponsiveContainer width="100%" height="100%"><BarChart data={quarterData} margin={{ top: 5, right: 5, left: -12, bottom: 0 }}><CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" /><XAxis dataKey="quarter" /><YAxis unit="万" /><Tooltip formatter={(v) => [`${Number(v).toFixed(1)} 万元`]} /><Legend /><Bar dataKey="budget" name="预算" fill="#94a3b8" radius={[6, 6, 0, 0]} /><Bar dataKey="actual" name="已录入" fill="#3b6ef6" radius={[6, 6, 0, 0]} /></BarChart></ResponsiveContainer></div>
+          <div className="h-72"><ResponsiveContainer width="100%" height="100%"><BarChart data={quarterData} margin={{ top: 28, right: 12, left: 22, bottom: 0 }}><CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" /><XAxis dataKey="quarter" /><YAxis width={64} unit="万" /><Tooltip formatter={(v) => [`${Number(v).toFixed(1)} 万元`]} /><Legend /><Bar dataKey="budget" name="预算" fill="#94a3b8" radius={[6, 6, 0, 0]}><LabelList dataKey="budget" position="top" formatter={(v) => `${Number(v).toLocaleString('zh-CN')} 万`} fill="#64748b" fontSize={11} /></Bar><Bar dataKey="actual" name="已录入" fill="#3b6ef6" radius={[6, 6, 0, 0]}><LabelList dataKey="actual" position="top" formatter={(v) => Number(v) ? `${Number(v).toLocaleString('zh-CN')} 万` : ''} fill="#2563eb" fontSize={11} /></Bar></BarChart></ResponsiveContainer></div>
         </Card>
         <Card className="p-0 overflow-hidden">
           <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4"><div><div className="font-semibold text-slate-800">项目预算执行</div><div className="text-xs text-slate-400">点击“调预算”修改各季度额度</div></div></div>
@@ -179,7 +241,7 @@ export default function MarketingExpenses() {
 
       <Card className="mt-4 p-0 overflow-hidden">
         <div className="border-b border-slate-100 p-4 sm:p-5"><div className="flex flex-wrap items-center justify-between gap-3"><div><div className="font-semibold text-slate-800">费用明细</div><div className="text-xs text-slate-400">当前筛选 {filteredExpenses.length} 笔，共 {money(filteredExpenses.reduce((s, e) => s + Number(e.amount), 0))}</div></div><Button variant="primary" onClick={() => openExpense()}><Plus size={16} />记一笔费用</Button></div><div className="mt-4 grid gap-2 md:grid-cols-[1fr_220px_160px]"><div className="relative"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><input className={`${inputClass} pl-9`} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="搜索费用明细、供应商、票据号或经办人" /></div><select className={inputClass} value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}><option value="all">全部项目</option>{categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select><select className={inputClass} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}><option value="all">全部状态</option>{Object.entries(STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></div></div>
-        {loading ? <div className="py-16 text-center text-slate-400">加载中…</div> : filteredExpenses.length === 0 ? <EmptyState icon={<ReceiptText size={30} />} title="暂无费用记录" hint="点击“记一笔费用”，录入后看板和预算使用率会自动更新。" /> : <div className="overflow-x-auto"><table className="w-full min-w-[1050px] text-sm"><thead><tr className="border-b border-slate-100 text-left text-xs text-slate-400"><th className="px-4 py-3 font-medium">日期</th><th className="px-4 py-3 font-medium">项目 / 明细</th><th className="px-4 py-3 font-medium">供应商</th><th className="px-4 py-3 font-medium">金额</th><th className="px-4 py-3 font-medium">状态</th><th className="px-4 py-3 font-medium">票据 / 经办人</th><th className="px-4 py-3 font-medium text-right">操作</th></tr></thead><tbody>{filteredExpenses.map((e) => { const st = STATUS[e.payment_status] || STATUS.paid; return <tr key={e.id} className="border-b border-slate-50"><td className="px-4 py-3 text-slate-500">{e.expense_date}<div className="text-[11px] text-slate-300">{quarter(e.expense_date)}</div></td><td className="px-4 py-3"><div className="font-medium text-slate-700">{e.item}</div><div className="mt-0.5 text-xs text-slate-400">{categoryMap[e.category_id]?.name || '未分类'}{e.notes ? ` · ${e.notes}` : ''}</div></td><td className="px-4 py-3 text-slate-500">{e.vendor || '—'}</td><td className="px-4 py-3 font-semibold text-slate-800">{money(e.amount)}</td><td className="px-4 py-3"><Badge color={st.color}>{st.label}</Badge></td><td className="px-4 py-3 text-xs text-slate-500"><div>{e.invoice_no || '无票据号'}</div><div className="text-slate-400">{e.owner || '未填经办人'}</div>{e.receipt_url && <a href={e.receipt_url} target="_blank" rel="noreferrer" className="text-brand-600 hover:underline">查看凭证</a>}</td><td className="px-4 py-3"><div className="flex justify-end gap-1"><button onClick={() => openExpense(e)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"><Pencil size={14} /></button><button onClick={() => removeExpense(e)} className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"><Trash2 size={14} /></button></div></td></tr> })}</tbody></table></div>}
+        {loading ? <div className="py-16 text-center text-slate-400">加载中…</div> : filteredExpenses.length === 0 ? <EmptyState icon={<ReceiptText size={30} />} title="暂无费用记录" hint="点击“记一笔费用”，录入后看板和预算使用率会自动更新。" /> : <div className="overflow-x-auto"><table className="w-full min-w-[1050px] text-sm"><thead><tr className="border-b border-slate-100 text-left text-xs text-slate-400"><th className="px-4 py-3 font-medium">日期</th><th className="px-4 py-3 font-medium">项目 / 明细</th><th className="px-4 py-3 font-medium">供应商</th><th className="px-4 py-3 font-medium">金额</th><th className="px-4 py-3 font-medium">状态</th><th className="px-4 py-3 font-medium">票据 / 经办人</th><th className="px-4 py-3 font-medium text-right">操作</th></tr></thead><tbody>{filteredExpenses.map((e) => { const st = STATUS[e.payment_status] || STATUS.paid; return <tr key={e.id} className="border-b border-slate-50"><td className="px-4 py-3 text-slate-500">{e.expense_date}<div className="text-[11px] text-slate-300">{quarter(e.expense_date)}</div></td><td className="px-4 py-3"><div className="font-medium text-slate-700">{e.item}</div><div className="mt-0.5 text-xs text-slate-400">{categoryMap[e.category_id]?.name || '未分类'}{e.notes ? ` · ${e.notes}` : ''}</div></td><td className="px-4 py-3 text-slate-500">{e.vendor || '—'}</td><td className="px-4 py-3 font-semibold text-slate-800">{money(e.amount)}</td><td className="px-4 py-3"><Badge color={st.color}>{st.label}</Badge></td><td className="px-4 py-3 text-xs text-slate-500"><div>{e.invoice_no || '无票据号'}</div><div className="text-slate-400">{e.owner || '未填经办人'}</div><div className="mt-1 flex flex-wrap gap-2">{e.receipt_path && <button onClick={() => openAttachment(e)} className="text-brand-600 hover:underline">{e.receipt_name || '查看附件'}</button>}{e.receipt_url && <a href={e.receipt_url} target="_blank" rel="noreferrer" className="text-brand-600 hover:underline">查看链接</a>}</div></td><td className="px-4 py-3"><div className="flex justify-end gap-1"><button onClick={() => openExpense(e)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"><Pencil size={14} /></button><button onClick={() => removeExpense(e)} className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"><Trash2 size={14} /></button></div></td></tr> })}</tbody></table></div>}
       </Card>
 
       <Modal open={expenseModal} onClose={() => !saving && setExpenseModal(false)} title={expenseForm.id ? '编辑费用' : '记一笔费用'} footer={<><Button onClick={() => setExpenseModal(false)} disabled={saving}>取消</Button><Button variant="primary" onClick={saveExpense} disabled={saving}>{saving ? '保存中…' : '保存'}</Button></>}>
@@ -192,13 +254,16 @@ export default function MarketingExpenses() {
           <Field label="供应商"><input className={inputClass} value={expenseForm.vendor} onChange={(e) => setExpenseForm({ ...expenseForm, vendor: e.target.value })} /></Field>
           <Field label="票据 / 合同号"><input className={inputClass} value={expenseForm.invoice_no} onChange={(e) => setExpenseForm({ ...expenseForm, invoice_no: e.target.value })} /></Field>
           <Field label="经办人"><input className={inputClass} value={expenseForm.owner} onChange={(e) => setExpenseForm({ ...expenseForm, owner: e.target.value })} /></Field>
-          <div className="col-span-2"><Field label="凭证链接"><input className={inputClass} value={expenseForm.receipt_url} onChange={(e) => setExpenseForm({ ...expenseForm, receipt_url: e.target.value })} placeholder="网盘、审批单或发票链接" /></Field></div>
+          <div className="col-span-2"><Field label="上传发票 / 合同"><label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm text-slate-500 hover:border-brand-400 hover:bg-brand-50"><Upload size={18} /><span>{attachmentFile ? attachmentFile.name : '选择 PDF、图片、Word 或 Excel 文件（最大 20MB）'}</span><input type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx" onChange={(e) => handleAttachmentSelected(e.target.files?.[0] || null)} /></label>{ocrStatus && <div className="mt-2 text-xs text-brand-600">{ocrStatus}</div>}{expenseForm.receipt_path && !attachmentFile && !removeAttachment && <div className="mt-2 flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600"><span className="flex min-w-0 items-center gap-2"><FileText size={16} className="shrink-0" /><span className="truncate">{expenseForm.receipt_name || '已上传附件'}</span></span><button type="button" onClick={() => { if (window.confirm('确定移除已上传的附件？保存后生效。')) setRemoveAttachment(true) }} className="ml-2 rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600"><X size={15} /></button></div>}{removeAttachment && <div className="mt-2 text-xs text-orange-600">已标记移除，保存后删除原附件。</div>}</Field></div>
+          <Field label="购方名称（自动识别）"><input className={inputClass} value={expenseForm.buyer_name || ''} onChange={(e) => setExpenseForm({ ...expenseForm, buyer_name: e.target.value })} placeholder="上传发票后自动填写" /></Field>
+          <Field label="卖方名称（自动识别）"><input className={inputClass} value={expenseForm.seller_name || ''} onChange={(e) => setExpenseForm({ ...expenseForm, seller_name: e.target.value, vendor: e.target.value || expenseForm.vendor })} placeholder="上传发票后自动填写" /></Field>
+          <div className="col-span-2"><Field label="凭证链接（可选）"><input className={inputClass} value={expenseForm.receipt_url} onChange={(e) => setExpenseForm({ ...expenseForm, receipt_url: e.target.value })} placeholder="网盘或审批单链接" /></Field></div>
           <div className="col-span-2"><Field label="备注"><textarea rows={2} className={inputClass} value={expenseForm.notes} onChange={(e) => setExpenseForm({ ...expenseForm, notes: e.target.value })} /></Field></div>
         </form>
       </Modal>
 
       <Modal open={budgetModal} onClose={() => !saving && setBudgetModal(false)} title={`调整预算 · ${budgetForm.name}`} footer={<><Button onClick={() => setBudgetModal(false)} disabled={saving}>取消</Button><Button variant="primary" onClick={saveBudget} disabled={saving}>{saving ? '保存中…' : '保存预算'}</Button></>}>
-        <form onSubmit={saveBudget} className="space-y-3"><p className="text-sm text-slate-500">单位：人民币万元。年度预算将按三个季度自动合计。</p><Field label="Q2（4—6月）"><input type="number" min="0" step="0.01" className={inputClass} value={budgetForm.q2} onChange={(e) => setBudgetForm({ ...budgetForm, q2: e.target.value })} /></Field><Field label="Q3（7—9月）"><input type="number" min="0" step="0.01" className={inputClass} value={budgetForm.q3} onChange={(e) => setBudgetForm({ ...budgetForm, q3: e.target.value })} /></Field><Field label="Q4（10—12月）"><input type="number" min="0" step="0.01" className={inputClass} value={budgetForm.q4} onChange={(e) => setBudgetForm({ ...budgetForm, q4: e.target.value })} /></Field><div className="rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-600">调整后年度预算：<strong>{(Number(budgetForm.q2 || 0) + Number(budgetForm.q3 || 0) + Number(budgetForm.q4 || 0)).toLocaleString('zh-CN')} 万元</strong></div></form>
+        <form onSubmit={saveBudget} className="space-y-3"><p className="text-sm text-slate-500">单位：人民币万元。年度预算将按四个季度自动合计。</p><Field label="Q1（1—3月）"><input type="number" min="0" step="0.01" className={inputClass} value={budgetForm.q1} onChange={(e) => setBudgetForm({ ...budgetForm, q1: e.target.value })} /></Field><Field label="Q2（4—6月）"><input type="number" min="0" step="0.01" className={inputClass} value={budgetForm.q2} onChange={(e) => setBudgetForm({ ...budgetForm, q2: e.target.value })} /></Field><Field label="Q3（7—9月）"><input type="number" min="0" step="0.01" className={inputClass} value={budgetForm.q3} onChange={(e) => setBudgetForm({ ...budgetForm, q3: e.target.value })} /></Field><Field label="Q4（10—12月）"><input type="number" min="0" step="0.01" className={inputClass} value={budgetForm.q4} onChange={(e) => setBudgetForm({ ...budgetForm, q4: e.target.value })} /></Field><div className="rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-600">调整后年度预算：<strong>{(Number(budgetForm.q1 || 0) + Number(budgetForm.q2 || 0) + Number(budgetForm.q3 || 0) + Number(budgetForm.q4 || 0)).toLocaleString('zh-CN')} 万元</strong></div></form>
       </Modal>
     </div>
   )
