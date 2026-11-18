@@ -81,6 +81,7 @@ export default function MarketingExpenses() {
   const [removeAttachment, setRemoveAttachment] = useState(false)
   const [ocrStatus, setOcrStatus] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('all')
+  const [projectPeriod, setProjectPeriod] = useState('all')
   const [quarterFilter, setQuarterFilter] = useState('all')
   const [itemFilter, setItemFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
@@ -116,10 +117,15 @@ export default function MarketingExpenses() {
   })), [categories, expenses])
 
   const categoryRows = useMemo(() => categories.map((c) => {
-    const budget = Number(c.q1_budget) + Number(c.q2_budget) + Number(c.q3_budget) + Number(c.q4_budget)
-    const actual = expenses.filter((e) => e.category_id === c.id).reduce((s, e) => s + Number(e.amount), 0)
+    const budget = projectPeriod === 'all'
+      ? Number(c.q1_budget) + Number(c.q2_budget) + Number(c.q3_budget) + Number(c.q4_budget)
+      : Number(c[`${projectPeriod.toLowerCase()}_budget`] || 0)
+    const actual = expenses
+      .filter((e) => e.category_id === c.id)
+      .filter((e) => projectPeriod === 'all' || quarter(e.expense_date) === projectPeriod)
+      .reduce((s, e) => s + Number(e.amount), 0)
     return { ...c, budget, actual, usage: pct(actual, budget) }
-  }), [categories, expenses])
+  }), [categories, expenses, projectPeriod])
 
   const itemOptions = useMemo(() => {
     const planned = budgetItems
@@ -294,8 +300,8 @@ export default function MarketingExpenses() {
           <div className="h-72"><ResponsiveContainer width="100%" height="100%"><BarChart data={quarterData} margin={{ top: 28, right: 12, left: 22, bottom: 0 }}><CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" /><XAxis dataKey="quarter" /><YAxis width={64} unit="万" /><Tooltip formatter={(v) => [`${Number(v).toFixed(1)} 万元`]} /><Legend /><Bar dataKey="budget" name="预算" fill="#94a3b8" radius={[6, 6, 0, 0]}><LabelList dataKey="budget" position="top" formatter={(v) => `${Number(v).toLocaleString('zh-CN')}万`} fill="#64748b" fontSize={11} /></Bar><Bar dataKey="actual" name="已录入" fill="#3b6ef6" radius={[6, 6, 0, 0]}><LabelList dataKey="actual" position="top" formatter={(v) => Number(v) ? `${Number(v).toLocaleString('zh-CN')}万` : ''} fill="#2563eb" fontSize={11} /></Bar></BarChart></ResponsiveContainer></div>
         </Card>
         <Card className="p-0 overflow-hidden">
-          <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4"><div><div className="font-semibold text-slate-800">项目预算执行</div><div className="text-xs text-slate-400">点击“调预算”修改各季度额度</div></div></div>
-          <div className="overflow-x-auto"><table className="w-full min-w-[720px] text-sm"><thead><tr className="border-b border-slate-100 text-left text-xs text-slate-400"><th className="px-4 py-3 font-medium">项目</th><th className="px-4 py-3 font-medium">预算</th><th className="px-4 py-3 font-medium">已录入</th><th className="px-4 py-3 font-medium">使用率</th><th className="px-4 py-3 font-medium text-right">操作</th></tr></thead><tbody>{categoryRows.map((c) => <tr key={c.id} className="border-b border-slate-50"><td className="px-4 py-3 font-medium text-slate-700">{c.name}</td><td className="px-4 py-3 text-slate-500">{wan(c.budget)}</td><td className="px-4 py-3 text-slate-700">{wan(c.actual)}</td><td className="px-4 py-3"><div className="flex items-center gap-2"><div className="h-1.5 w-20 overflow-hidden rounded-full bg-slate-100"><div className={`h-full ${c.usage > 100 ? 'bg-red-500' : 'bg-brand-500'}`} style={{ width: `${Math.min(c.usage, 100)}%` }} /></div><span className={c.usage > 100 ? 'text-red-600' : 'text-slate-500'}>{c.usage.toFixed(1)}%</span></div></td><td className="px-4 py-3 text-right"><button onClick={() => openBudget(c)} className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-brand-600 hover:bg-brand-50"><SlidersHorizontal size={13} />调预算</button></td></tr>)}</tbody></table></div>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4"><div><div className="font-semibold text-slate-800">项目预算执行</div><div className="text-xs text-slate-400">直接切换全年或季度，点击“调预算”修改额度</div></div><select className={`${inputClass} w-auto min-w-[120px]`} value={projectPeriod} onChange={(e) => setProjectPeriod(e.target.value)}><option value="all">全年</option>{['Q1','Q2','Q3','Q4'].map((q) => <option key={q} value={q}>{q}</option>)}</select></div>
+          <div className="overflow-x-auto"><table className="w-full min-w-[720px] text-sm"><thead><tr className="border-b border-slate-100 text-left text-xs text-slate-400"><th className="px-4 py-3 font-medium">项目</th><th className="px-4 py-3 font-medium">{projectPeriod === 'all' ? '全年预算' : `${projectPeriod}预算`}</th><th className="px-4 py-3 font-medium">{projectPeriod === 'all' ? '全年已录入' : `${projectPeriod}已录入`}</th><th className="px-4 py-3 font-medium">使用率</th><th className="px-4 py-3 font-medium text-right">操作</th></tr></thead><tbody>{categoryRows.map((c) => <tr key={c.id} className="border-b border-slate-50"><td className="px-4 py-3 font-medium text-slate-700">{c.name}</td><td className="px-4 py-3 text-slate-500">{wan(c.budget)}</td><td className="px-4 py-3 text-slate-700">{wan(c.actual)}</td><td className="px-4 py-3"><div className="flex items-center gap-2"><div className="h-1.5 w-20 overflow-hidden rounded-full bg-slate-100"><div className={`h-full ${c.usage > 100 ? 'bg-red-500' : 'bg-brand-500'}`} style={{ width: `${Math.min(c.usage, 100)}%` }} /></div><span className={c.usage > 100 ? 'text-red-600' : 'text-slate-500'}>{c.usage.toFixed(1)}%</span></div></td><td className="px-4 py-3 text-right"><button onClick={() => openBudget(c)} className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-brand-600 hover:bg-brand-50"><SlidersHorizontal size={13} />调预算</button></td></tr>)}</tbody></table></div>
         </Card>
       </div>
 
