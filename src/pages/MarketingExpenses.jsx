@@ -23,6 +23,23 @@ const CATEGORY_ITEMS = {
   reserve: ['汇率及跨境付款成本超支', '机票、住宿价格超支', '运输、税费及样品补寄超支', '应急修复或有效项目追加测试'],
 }
 
+const CATEGORY_ITEM_QUARTERS = {
+  exhibitions: [[24,0,10,5],[7,21,5,12],[4,5,5,0],[0,15,5,10],[0,20.2,0,10.7],[0,2,3,3],[0,4,0,2],[0,2.8,2,2.3]],
+  ads: [[8,12,15,15],[4,8,9,9],[1,2,3,4],[1,2,2,1],[1,1,1,1]],
+  channel_support: [[3,4,5,6],[1.5,2.5,3.5,4.5],[1,2,3,4],[1.5,2,4,4.5],[0.5,1,1.5,2],[0.5,0.5,1,1]],
+  salons: [[2,1,1.5,1.5],[0,1,3,2],[0,0,2,4],[0,0.5,1,1.5],[0.5,1.5,2,2],[0.5,1,0.5,1]],
+  website: [[1.5,1.5,1.75,1.75],[2,0,0,0],[0.5,1.5,1,1],[0.75,0.75,0.75,0.75],[0.75,0.75,0.75,0.75],[0.5,0.5,0.25,0.25]],
+  video: [[5,1,0,0],[3,10,5,0],[1,3,2,0],[1,2,5,2],[0,1,2,2],[1,1,0,0],[1,0,1,1]],
+  ai_tool: [[1,2,2,2],[0.5,1,1,1.5],[0.5,2,1,0.5],[2,1.5,0.5,0],[1,1,0,0],[1,0.5,0.5,0],[0,1,1,0]],
+  research: [[2.5,1,0.5,0],[1,1,1,1],[1.5,1.5,1,1],[1,0.5,0.5,0]],
+  reserve: [[1,1,1,2],[1,2,1,1],[2,1,1,1],[1,1,2,1]],
+}
+
+const fallbackBudgetItems = (cats) => cats.flatMap((category) => (CATEGORY_ITEMS[category.code] || []).map((itemName, index) => {
+  const values = CATEGORY_ITEM_QUARTERS[category.code]?.[index] || [0, 0, 0, 0]
+  return { id: `${category.id}-${index}`, category_id: category.id, item_name: itemName, q1_budget: values[0] * 10000, q2_budget: values[1] * 10000, q3_budget: values[2] * 10000, q4_budget: values[3] * 10000, sort_order: (index + 1) * 10 }
+}))
+
 const STATUS = {
   paid: { label: '已支付', color: 'green' },
   pending: { label: '待付款', color: 'orange' },
@@ -51,6 +68,7 @@ export default function MarketingExpenses() {
   const { profile } = useAuth()
   const [year, setYear] = useState(2027)
   const [categories, setCategories] = useState([])
+  const [budgetItems, setBudgetItems] = useState([])
   const [expenses, setExpenses] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -70,14 +88,17 @@ export default function MarketingExpenses() {
 
   const load = useCallback(async () => {
     setLoading(true); setError('')
-    const [{ data: cats, error: catError }, { data: rows, error: expenseError }] = await Promise.all([
+    const [{ data: cats, error: catError }, { data: rows, error: expenseError }, { data: items, error: itemError }] = await Promise.all([
       supabase.from('marketing_budget_categories').select('*').eq('year', year).order('sort_order'),
       supabase.from('marketing_expenses').select('*').order('expense_date', { ascending: false }).order('created_at', { ascending: false }),
+      supabase.from('marketing_budget_items').select('*').order('sort_order'),
     ])
     if (catError || expenseError) setError(catError?.message || expenseError?.message || '加载失败')
     setCategories(cats || [])
     const ids = new Set((cats || []).map((c) => c.id))
     setExpenses((rows || []).filter((r) => ids.has(r.category_id)))
+    const liveItems = (items || []).filter((r) => ids.has(r.category_id))
+    setBudgetItems(itemError || liveItems.length === 0 ? fallbackBudgetItems(cats || []) : liveItems)
     setLoading(false)
   }, [year])
   useEffect(() => { load() }, [load])
@@ -101,14 +122,14 @@ export default function MarketingExpenses() {
   }), [categories, expenses])
 
   const itemOptions = useMemo(() => {
-    const planned = categoryFilter === 'all'
-      ? Object.values(CATEGORY_ITEMS).flat()
-      : (CATEGORY_ITEMS[categoryMap[categoryFilter]?.code] || [])
+    const planned = budgetItems
+      .filter((item) => categoryFilter === 'all' || item.category_id === categoryFilter)
+      .map((item) => item.item_name)
     const recorded = expenses
       .filter((e) => categoryFilter === 'all' || e.category_id === categoryFilter)
       .map((e) => e.item)
     return [...new Set([...planned, ...recorded].filter(Boolean))]
-  }, [categoryFilter, categoryMap, expenses])
+  }, [categoryFilter, budgetItems, expenses])
 
   useEffect(() => {
     if (itemFilter !== 'all' && !itemOptions.includes(itemFilter)) setItemFilter('all')
@@ -129,6 +150,20 @@ export default function MarketingExpenses() {
     const outstanding = total - paid
     return { total, paid, outstanding, average: filteredExpenses.length ? total / filteredExpenses.length : 0 }
   }, [filteredExpenses])
+
+  const detailBudgetRows = useMemo(() => budgetItems
+    .filter((item) => categoryFilter === 'all' || item.category_id === categoryFilter)
+    .filter((item) => itemFilter === 'all' || item.item_name === itemFilter)
+    .map((item) => {
+      const budget = quarterFilter === 'all'
+        ? ['q1_budget', 'q2_budget', 'q3_budget', 'q4_budget'].reduce((sum, key) => sum + Number(item[key] || 0), 0)
+        : Number(item[`${quarterFilter.toLowerCase()}_budget`] || 0)
+      const actual = expenses
+        .filter((expense) => expense.category_id === item.category_id && expense.item === item.item_name)
+        .filter((expense) => quarterFilter === 'all' || quarter(expense.expense_date) === quarterFilter)
+        .reduce((sum, expense) => sum + Number(expense.amount), 0)
+      return { ...item, budget, actual, remaining: budget - actual, usage: pct(actual, budget) }
+    }), [budgetItems, categoryFilter, itemFilter, quarterFilter, expenses])
 
   function openExpense(row = null) {
     setExpenseForm(row ? { ...row, amount: String(row.amount) } : { ...emptyExpense(year), category_id: categories[0]?.id || '' })
@@ -263,6 +298,11 @@ export default function MarketingExpenses() {
           <div className="overflow-x-auto"><table className="w-full min-w-[720px] text-sm"><thead><tr className="border-b border-slate-100 text-left text-xs text-slate-400"><th className="px-4 py-3 font-medium">项目</th><th className="px-4 py-3 font-medium">预算</th><th className="px-4 py-3 font-medium">已录入</th><th className="px-4 py-3 font-medium">使用率</th><th className="px-4 py-3 font-medium text-right">操作</th></tr></thead><tbody>{categoryRows.map((c) => <tr key={c.id} className="border-b border-slate-50"><td className="px-4 py-3 font-medium text-slate-700">{c.name}</td><td className="px-4 py-3 text-slate-500">{wan(c.budget)}</td><td className="px-4 py-3 text-slate-700">{wan(c.actual)}</td><td className="px-4 py-3"><div className="flex items-center gap-2"><div className="h-1.5 w-20 overflow-hidden rounded-full bg-slate-100"><div className={`h-full ${c.usage > 100 ? 'bg-red-500' : 'bg-brand-500'}`} style={{ width: `${Math.min(c.usage, 100)}%` }} /></div><span className={c.usage > 100 ? 'text-red-600' : 'text-slate-500'}>{c.usage.toFixed(1)}%</span></div></td><td className="px-4 py-3 text-right"><button onClick={() => openBudget(c)} className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-brand-600 hover:bg-brand-50"><SlidersHorizontal size={13} />调预算</button></td></tr>)}</tbody></table></div>
         </Card>
       </div>
+
+      <Card className="mt-4 p-0 overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-5 py-4"><div><div className="font-semibold text-slate-800">预算明细看板</div><div className="text-xs text-slate-400">{quarterFilter === 'all' ? '全年' : quarterFilter} · 每项预算与实际费用对照</div></div><div className="text-sm text-slate-500">预算 {wan(detailBudgetRows.reduce((s, r) => s + r.budget, 0))} · 已录入 {wan(detailBudgetRows.reduce((s, r) => s + r.actual, 0))}</div></div>
+        <div className="overflow-x-auto"><table className="w-full min-w-[820px] text-sm"><thead><tr className="border-b border-slate-100 text-left text-xs text-slate-400"><th className="px-4 py-3 font-medium">预算项目</th><th className="px-4 py-3 font-medium">具体明细</th><th className="px-4 py-3 font-medium">{quarterFilter === 'all' ? '全年预算' : `${quarterFilter} 预算`}</th><th className="px-4 py-3 font-medium">实际费用</th><th className="px-4 py-3 font-medium">剩余</th><th className="px-4 py-3 font-medium">使用率</th></tr></thead><tbody>{detailBudgetRows.map((row) => <tr key={row.id} className="border-b border-slate-50"><td className="px-4 py-3 text-slate-500">{categoryMap[row.category_id]?.name || '未分类'}</td><td className="px-4 py-3 font-medium text-slate-700">{row.item_name}</td><td className="px-4 py-3 text-slate-700">{wan(row.budget)}</td><td className="px-4 py-3 font-medium text-slate-800">{wan(row.actual)}</td><td className={`px-4 py-3 ${row.remaining < 0 ? 'text-red-600' : 'text-slate-500'}`}>{wan(row.remaining)}</td><td className="px-4 py-3"><span className={row.usage > 100 ? 'font-medium text-red-600' : 'text-slate-500'}>{row.usage.toFixed(1)}%</span></td></tr>)}</tbody></table></div>
+      </Card>
 
       <Card className="mt-4 p-0 overflow-hidden">
         <div className="border-b border-slate-100 p-4 sm:p-5"><div className="flex flex-wrap items-center justify-between gap-3"><div><div className="font-semibold text-slate-800">费用明细</div><div className="text-xs text-slate-400">按季度、项目和具体明细筛选，统计看板会同步更新</div></div><Button variant="primary" onClick={() => openExpense()}><Plus size={16} />记一笔费用</Button></div><div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-[1fr_190px_140px_220px_150px]"><div className="relative"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><input className={`${inputClass} pl-9`} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="搜索费用明细、供应商、票据号或经办人" /></div><select className={inputClass} value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}><option value="all">全部项目</option>{categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select><select className={inputClass} value={quarterFilter} onChange={(e) => setQuarterFilter(e.target.value)}><option value="all">全部季度</option>{['Q1', 'Q2', 'Q3', 'Q4'].map((q) => <option key={q} value={q}>{q}</option>)}</select><select className={inputClass} value={itemFilter} onChange={(e) => setItemFilter(e.target.value)}><option value="all">全部具体明细</option>{itemOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select><select className={inputClass} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}><option value="all">全部状态</option>{Object.entries(STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></div><div className="mt-4"><div className="mb-2 flex flex-wrap items-center gap-2 text-sm"><span className="font-semibold text-slate-700">筛选看板</span>{quarterFilter !== 'all' && <Badge color="blue">{quarterFilter}</Badge>}{categoryFilter !== 'all' && <Badge color="blue">{categoryMap[categoryFilter]?.name}</Badge>}{itemFilter !== 'all' && <Badge color="green">{itemFilter}</Badge>}</div><div className="grid grid-cols-2 gap-2 lg:grid-cols-4"><FilterMetric label="筛选费用" value={money(filteredSummary.total)} sub={`${filteredExpenses.length} 笔`} /><FilterMetric label="已支付" value={money(filteredSummary.paid)} sub="已完成付款" /><FilterMetric label="待处理" value={money(filteredSummary.outstanding)} sub="待付款及报销中" /><FilterMetric label="笔均费用" value={money(filteredSummary.average)} sub="按当前筛选计算" /></div></div></div>
