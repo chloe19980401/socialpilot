@@ -136,9 +136,9 @@ export default function MarketingExpenses() {
     }
     const payload = {
       category_id: expenseForm.category_id, expense_date: expenseForm.expense_date, item: expenseForm.item.trim(), amount: Number(expenseForm.amount),
-      vendor: expenseForm.vendor.trim() || null, payment_status: expenseForm.payment_status, invoice_no: expenseForm.invoice_no.trim() || null,
-      owner: expenseForm.owner.trim() || null, receipt_url: expenseForm.receipt_url.trim() || null,
-      buyer_name: (expenseForm.buyer_name || '').trim() || null, seller_name: (expenseForm.seller_name || '').trim() || null, notes: expenseForm.notes.trim() || null,
+      vendor: (expenseForm.vendor || '').trim() || null, payment_status: expenseForm.payment_status, invoice_no: (expenseForm.invoice_no || '').trim() || null,
+      owner: (expenseForm.owner || '').trim() || null, receipt_url: (expenseForm.receipt_url || '').trim() || null,
+      buyer_name: (expenseForm.buyer_name || '').trim() || null, seller_name: (expenseForm.seller_name || '').trim() || null, notes: (expenseForm.notes || '').trim() || null,
       ...attachment,
       created_by: expenseForm.id ? undefined : profile?.email || null,
     }
