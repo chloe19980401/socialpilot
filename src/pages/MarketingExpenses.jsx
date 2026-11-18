@@ -63,6 +63,8 @@ export default function MarketingExpenses() {
   const [removeAttachment, setRemoveAttachment] = useState(false)
   const [ocrStatus, setOcrStatus] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('all')
+  const [quarterFilter, setQuarterFilter] = useState('all')
+  const [itemFilter, setItemFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
   const [query, setQuery] = useState('')
 
@@ -98,12 +100,35 @@ export default function MarketingExpenses() {
     return { ...c, budget, actual, usage: pct(actual, budget) }
   }), [categories, expenses])
 
+  const itemOptions = useMemo(() => {
+    const planned = categoryFilter === 'all'
+      ? Object.values(CATEGORY_ITEMS).flat()
+      : (CATEGORY_ITEMS[categoryMap[categoryFilter]?.code] || [])
+    const recorded = expenses
+      .filter((e) => categoryFilter === 'all' || e.category_id === categoryFilter)
+      .map((e) => e.item)
+    return [...new Set([...planned, ...recorded].filter(Boolean))]
+  }, [categoryFilter, categoryMap, expenses])
+
+  useEffect(() => {
+    if (itemFilter !== 'all' && !itemOptions.includes(itemFilter)) setItemFilter('all')
+  }, [itemFilter, itemOptions])
+
   const filteredExpenses = useMemo(() => expenses.filter((e) => {
     if (categoryFilter !== 'all' && e.category_id !== categoryFilter) return false
+    if (quarterFilter !== 'all' && quarter(e.expense_date) !== quarterFilter) return false
+    if (itemFilter !== 'all' && e.item !== itemFilter) return false
     if (statusFilter !== 'all' && e.payment_status !== statusFilter) return false
     const haystack = `${e.item} ${e.vendor || ''} ${e.buyer_name || ''} ${e.seller_name || ''} ${e.invoice_no || ''} ${e.owner || ''}`.toLowerCase()
     return !query.trim() || haystack.includes(query.trim().toLowerCase())
-  }), [expenses, categoryFilter, statusFilter, query])
+  }), [expenses, categoryFilter, quarterFilter, itemFilter, statusFilter, query])
+
+  const filteredSummary = useMemo(() => {
+    const total = filteredExpenses.reduce((s, e) => s + Number(e.amount), 0)
+    const paid = filteredExpenses.filter((e) => e.payment_status === 'paid').reduce((s, e) => s + Number(e.amount), 0)
+    const outstanding = total - paid
+    return { total, paid, outstanding, average: filteredExpenses.length ? total / filteredExpenses.length : 0 }
+  }, [filteredExpenses])
 
   function openExpense(row = null) {
     setExpenseForm(row ? { ...row, amount: String(row.amount) } : { ...emptyExpense(year), category_id: categories[0]?.id || '' })
@@ -240,7 +265,7 @@ export default function MarketingExpenses() {
       </div>
 
       <Card className="mt-4 p-0 overflow-hidden">
-        <div className="border-b border-slate-100 p-4 sm:p-5"><div className="flex flex-wrap items-center justify-between gap-3"><div><div className="font-semibold text-slate-800">费用明细</div><div className="text-xs text-slate-400">当前筛选 {filteredExpenses.length} 笔，共 {money(filteredExpenses.reduce((s, e) => s + Number(e.amount), 0))}</div></div><Button variant="primary" onClick={() => openExpense()}><Plus size={16} />记一笔费用</Button></div><div className="mt-4 grid gap-2 md:grid-cols-[1fr_220px_160px]"><div className="relative"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><input className={`${inputClass} pl-9`} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="搜索费用明细、供应商、票据号或经办人" /></div><select className={inputClass} value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}><option value="all">全部项目</option>{categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select><select className={inputClass} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}><option value="all">全部状态</option>{Object.entries(STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></div></div>
+        <div className="border-b border-slate-100 p-4 sm:p-5"><div className="flex flex-wrap items-center justify-between gap-3"><div><div className="font-semibold text-slate-800">费用明细</div><div className="text-xs text-slate-400">按季度、项目和具体明细筛选，统计看板会同步更新</div></div><Button variant="primary" onClick={() => openExpense()}><Plus size={16} />记一笔费用</Button></div><div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-[1fr_190px_140px_220px_150px]"><div className="relative"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><input className={`${inputClass} pl-9`} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="搜索费用明细、供应商、票据号或经办人" /></div><select className={inputClass} value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}><option value="all">全部项目</option>{categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select><select className={inputClass} value={quarterFilter} onChange={(e) => setQuarterFilter(e.target.value)}><option value="all">全部季度</option>{['Q1', 'Q2', 'Q3', 'Q4'].map((q) => <option key={q} value={q}>{q}</option>)}</select><select className={inputClass} value={itemFilter} onChange={(e) => setItemFilter(e.target.value)}><option value="all">全部具体明细</option>{itemOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select><select className={inputClass} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}><option value="all">全部状态</option>{Object.entries(STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></div><div className="mt-4"><div className="mb-2 flex flex-wrap items-center gap-2 text-sm"><span className="font-semibold text-slate-700">筛选看板</span>{quarterFilter !== 'all' && <Badge color="blue">{quarterFilter}</Badge>}{categoryFilter !== 'all' && <Badge color="blue">{categoryMap[categoryFilter]?.name}</Badge>}{itemFilter !== 'all' && <Badge color="green">{itemFilter}</Badge>}</div><div className="grid grid-cols-2 gap-2 lg:grid-cols-4"><FilterMetric label="筛选费用" value={money(filteredSummary.total)} sub={`${filteredExpenses.length} 笔`} /><FilterMetric label="已支付" value={money(filteredSummary.paid)} sub="已完成付款" /><FilterMetric label="待处理" value={money(filteredSummary.outstanding)} sub="待付款及报销中" /><FilterMetric label="笔均费用" value={money(filteredSummary.average)} sub="按当前筛选计算" /></div></div></div>
         {loading ? <div className="py-16 text-center text-slate-400">加载中…</div> : filteredExpenses.length === 0 ? <EmptyState icon={<ReceiptText size={30} />} title="暂无费用记录" hint="点击“记一笔费用”，录入后看板和预算使用率会自动更新。" /> : <div className="overflow-x-auto"><table className="w-full min-w-[1050px] text-sm"><thead><tr className="border-b border-slate-100 text-left text-xs text-slate-400"><th className="px-4 py-3 font-medium">日期</th><th className="px-4 py-3 font-medium">项目 / 明细</th><th className="px-4 py-3 font-medium">供应商</th><th className="px-4 py-3 font-medium">金额</th><th className="px-4 py-3 font-medium">状态</th><th className="px-4 py-3 font-medium">票据 / 经办人</th><th className="px-4 py-3 font-medium text-right">操作</th></tr></thead><tbody>{filteredExpenses.map((e) => { const st = STATUS[e.payment_status] || STATUS.paid; return <tr key={e.id} className="border-b border-slate-50"><td className="px-4 py-3 text-slate-500">{e.expense_date}<div className="text-[11px] text-slate-300">{quarter(e.expense_date)}</div></td><td className="px-4 py-3"><div className="font-medium text-slate-700">{e.item}</div><div className="mt-0.5 text-xs text-slate-400">{categoryMap[e.category_id]?.name || '未分类'}{e.notes ? ` · ${e.notes}` : ''}</div></td><td className="px-4 py-3 text-slate-500">{e.vendor || '—'}</td><td className="px-4 py-3 font-semibold text-slate-800">{money(e.amount)}</td><td className="px-4 py-3"><Badge color={st.color}>{st.label}</Badge></td><td className="px-4 py-3 text-xs text-slate-500"><div>{e.invoice_no || '无票据号'}</div><div className="text-slate-400">{e.owner || '未填经办人'}</div><div className="mt-1 flex flex-wrap gap-2">{e.receipt_path && <button onClick={() => openAttachment(e)} className="text-brand-600 hover:underline">{e.receipt_name || '查看附件'}</button>}{e.receipt_url && <a href={e.receipt_url} target="_blank" rel="noreferrer" className="text-brand-600 hover:underline">查看链接</a>}</div></td><td className="px-4 py-3"><div className="flex justify-end gap-1"><button onClick={() => openExpense(e)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"><Pencil size={14} /></button><button onClick={() => removeExpense(e)} className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"><Trash2 size={14} /></button></div></td></tr> })}</tbody></table></div>}
       </Card>
 
@@ -267,5 +292,9 @@ export default function MarketingExpenses() {
       </Modal>
     </div>
   )
+}
+
+function FilterMetric({ label, value, sub }) {
+  return <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3"><div className="text-xs text-slate-400">{label}</div><div className="mt-1 truncate text-base font-semibold text-slate-800" title={value}>{value}</div><div className="mt-0.5 text-[11px] text-slate-400">{sub}</div></div>
 }
 
