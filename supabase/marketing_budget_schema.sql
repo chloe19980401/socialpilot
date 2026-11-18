@@ -72,16 +72,22 @@ for all to authenticated using (true) with check (true);
 insert into public.marketing_budget_categories
   (year, code, name, q1_budget, q2_budget, q3_budget, q4_budget, sort_order)
 values
-  (2027, 'exhibitions', '三场专业门窗展', 0, 1050000, 300000, 450000, 10),
-  (2027, 'ads', '线上广告投放及支付费用', 0, 200000, 350000, 450000, 20),
-  (2027, 'channel_support', '代理商展示门样、运输及渠道支持', 0, 100000, 200000, 300000, 30),
-  (2027, 'salons', '行业协会线下沙龙及筹备', 0, 50000, 100000, 150000, 40),
-  (2027, 'website', '官网年费、服务器及运营工具', 0, 80000, 60000, 60000, 50),
-  (2027, 'video', '企业宣传片实拍及多语版本', 0, 200000, 250000, 50000, 60),
-  (2027, 'ai_tool', 'AI选门工具接口、云资源及测试', 0, 50000, 120000, 80000, 70),
-  (2027, 'research', '市场数据购买、访谈及渠道核验', 0, 70000, 50000, 30000, 80),
-  (2027, 'reserve', '总体预备金', 0, 50000, 50000, 100000, 90)
-on conflict (year, code) do nothing;
+  (2027, 'exhibitions', '三场专业门窗展', 350000, 700000, 300000, 450000, 10),
+  (2027, 'ads', '线上广告投放及支付费用', 150000, 250000, 300000, 300000, 20),
+  (2027, 'channel_support', '代理商展示门样、运输及渠道支持', 80000, 120000, 180000, 220000, 30),
+  (2027, 'salons', '行业协会线下沙龙及筹备', 30000, 50000, 100000, 120000, 40),
+  (2027, 'website', '官网年费、服务器及运营工具', 60000, 50000, 45000, 45000, 50),
+  (2027, 'video', '企业宣传片实拍及多语版本', 120000, 180000, 150000, 50000, 60),
+  (2027, 'ai_tool', 'AI选门工具接口、云资源及测试', 60000, 90000, 60000, 40000, 70),
+  (2027, 'research', '市场数据购买、访谈及渠道核验', 60000, 40000, 30000, 20000, 80),
+  (2027, 'reserve', '总体预备金', 50000, 50000, 50000, 50000, 90)
+on conflict (year, code) do update set
+  name = excluded.name,
+  q1_budget = excluded.q1_budget,
+  q2_budget = excluded.q2_budget,
+  q3_budget = excluded.q3_budget,
+  q4_budget = excluded.q4_budget,
+  sort_order = excluded.sort_order;
 
 -- 发票、合同等凭证使用私有存储桶，只通过短时签名链接查看。
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
