@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import {
   LayoutGrid, Globe, FileText, Calendar, CalendarClock, Star, ShoppingCart,
-  BarChart3, Award, Settings as SettingsIcon, ChevronDown, ChevronsUpDown, LogOut, Palette,
+  BarChart3, Award, Settings as SettingsIcon, ChevronDown, ChevronsUpDown, LogOut, Palette, WalletCards,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
@@ -20,6 +20,7 @@ const NAV = [
   { to: '/trends', label: '自建站看板', Icon: ShoppingCart },
   { to: '/competitors', label: '竞品分析', Icon: BarChart3 },
   { to: '/performance', label: '绩效看板', Icon: Award },
+  { to: '/marketing-expenses', label: '营销费用', Icon: WalletCards },
   { to: '/settings', label: '设置', Icon: SettingsIcon },
 ]
 

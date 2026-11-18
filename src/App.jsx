@@ -12,6 +12,7 @@ import Kol from './pages/Kol'
 import Ecommerce from './pages/Ecommerce'
 import Competitors from './pages/Competitors'
 import Performance from './pages/Performance'
+import MarketingExpenses from './pages/MarketingExpenses'
 import Settings from './pages/Settings'
 
 function Protected({ children }) {
@@ -54,6 +55,7 @@ export default function App() {
         <Route path="/trends" element={<Ecommerce />} />
         <Route path="/competitors" element={<Competitors />} />
         <Route path="/performance" element={<Performance />} />
+        <Route path="/marketing-expenses" element={<MarketingExpenses />} />
         <Route path="/settings" element={<Settings />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
