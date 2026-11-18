@@ -28,7 +28,11 @@ const STATUS = {
   reimbursing: { label: '报销中', color: 'blue' },
 }
 
-const emptyExpense = () => ({ id: null, category_id: '', expense_date: new Date().toISOString().slice(0, 10), item: '', amount: '', vendor: '', payment_status: 'paid', invoice_no: '', owner: '', receipt_url: '', notes: '' })
+const defaultExpenseDate = (year) => {
+  const today = new Date().toISOString().slice(0, 10)
+  return Number(today.slice(0, 4)) === Number(year) ? today : `${year}-04-01`
+}
+const emptyExpense = (year = 2027) => ({ id: null, category_id: '', expense_date: defaultExpenseDate(year), item: '', amount: '', vendor: '', payment_status: 'paid', invoice_no: '', owner: '', receipt_url: '', notes: '' })
 const emptyBudget = () => ({ id: null, name: '', q2: '', q3: '', q4: '' })
 const money = (n) => new Intl.NumberFormat('zh-CN', { style: 'currency', currency: 'CNY', maximumFractionDigits: 0 }).format(Number(n || 0))
 const wan = (n) => `${(Number(n || 0) / 10000).toLocaleString('zh-CN', { maximumFractionDigits: 1 })} 万`
@@ -50,7 +54,7 @@ export default function MarketingExpenses() {
   const [error, setError] = useState('')
   const [expenseModal, setExpenseModal] = useState(false)
   const [budgetModal, setBudgetModal] = useState(false)
-  const [expenseForm, setExpenseForm] = useState(emptyExpense())
+  const [expenseForm, setExpenseForm] = useState(emptyExpense(2027))
   const [budgetForm, setBudgetForm] = useState(emptyBudget())
   const [saving, setSaving] = useState(false)
   const [categoryFilter, setCategoryFilter] = useState('all')
@@ -97,7 +101,7 @@ export default function MarketingExpenses() {
   }), [expenses, categoryFilter, statusFilter, query])
 
   function openExpense(row = null) {
-    setExpenseForm(row ? { ...row, amount: String(row.amount) } : { ...emptyExpense(), category_id: categories[0]?.id || '' })
+    setExpenseForm(row ? { ...row, amount: String(row.amount) } : { ...emptyExpense(year), category_id: categories[0]?.id || '' })
     setExpenseModal(true)
   }
   function openBudget(c) {
@@ -108,6 +112,7 @@ export default function MarketingExpenses() {
   async function saveExpense(e) {
     e?.preventDefault()
     if (!expenseForm.category_id || !expenseForm.expense_date || !expenseForm.item.trim() || Number(expenseForm.amount) < 0 || expenseForm.amount === '') return alert('请完整填写项目、日期、费用明细和金额')
+    if (Number(expenseForm.expense_date.slice(0, 4)) !== year) return alert(`当前是 ${year} 年预算，费用日期也必须在 ${year} 年`)
     setSaving(true)
     const payload = {
       category_id: expenseForm.category_id, expense_date: expenseForm.expense_date, item: expenseForm.item.trim(), amount: Number(expenseForm.amount),
