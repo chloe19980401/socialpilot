@@ -102,9 +102,10 @@ Deno.serve(async (req) => {
     topQueries: cleanRows(body.topQueries, 30),
     topPages: cleanRows(body.topPages, 30),
     anomalyDiagnostics,
+    comparisons: body.comparisons || {},
   }
 
-  const system = `你是资深国际站 SEO 与增长分析师。请根据提供的 GA4 和 Google Search Console 数据，输出简体中文、证据驱动、可执行的分析。不得虚构数据，不得把相关性说成因果。数据只有当前周期时，可比较周期前后半段，但必须明确口径。重点识别：流量质量、自然搜索表现、低 CTR 高曝光机会、接近首页的关键词、落地页机会、异常和下一步动作。
+  const system = `你是资深国际站 SEO 与增长分析师。请根据提供的 GA4 和 Google Search Console 数据，输出简体中文、证据驱动、可执行的分析。不得虚构数据，不得把相关性说成因果。必须使用 comparisons.previous 做上一等长周期环比，使用 comparisons.yoy 做去年同期同比；若基期为 0，要明确写无法计算百分比，不得臆造。摘要、亮点、机会与风险应优先引用有意义的同比或环比变化。重点识别：流量质量、自然搜索表现、低 CTR 高曝光机会、接近首页的关键词、落地页机会、异常和下一步动作。
 
 对 anomalyDiagnostics 中的异常流量峰值必须单独归因：结合渠道/来源媒介、落地页、国家、设备、会话与参与质量，区分自然搜索、广告、社媒、引荐、直接访问、内部流量和可疑机器人。只有数据能支持时才给出原因；否则明确写“无法确认”并列出验证步骤。confidence 仅能是高、中或低。
 
@@ -145,6 +146,8 @@ anomalies 对每个输入异常日期各输出1项，无异常时返回空数组
     const content = result?.candidates?.[0]?.content?.parts?.map((part: { text?: string }) => part?.text || '').join('')
     if (!content) return json({ error: 'AI 未返回分析结果' }, 502)
     const analysis = parseJson(content)
+    analysis.current_metrics = input.metrics
+    analysis.comparisons = input.comparisons
     if (anomalyDiagnostics.length && (!Array.isArray(analysis.anomalies) || !analysis.anomalies.length)) analysis.anomalies = fallbackAnomalies(anomalyDiagnostics, searchDaily)
     return json({ analysis, model, generated_at: new Date().toISOString() })
   } catch (e) {

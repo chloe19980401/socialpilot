@@ -156,6 +156,7 @@ export default function Ecommerce() {
           topQueries: googleReport.topQueries,
           topPages: googleReport.topPages,
           anomalyDiagnostics: googleReport.anomalyDiagnostics,
+          comparisons: googleReport.comparisons,
         },
       })
       if (error) {
@@ -335,12 +336,21 @@ export default function Ecommerce() {
 
 function SeoAnalysis({ analysis }) {
   const score = Math.max(0, Math.min(100, Number(analysis.health_score) || 0))
+  const comparisonMetrics = [
+    { key: 'users', label: '活跃用户', format: (value) => Number(value || 0).toLocaleString() },
+    { key: 'clicks', label: '自然点击', format: (value) => Number(value || 0).toLocaleString() },
+    { key: 'impressions', label: '自然曝光', format: (value) => Number(value || 0).toLocaleString() },
+    { key: 'ctr', label: '自然 CTR', format: (value) => percent(Number(value || 0) * 100) },
+  ]
+  const comparisonChange = (current, base) => Number(base) ? ((Number(current || 0) - Number(base)) / Math.abs(Number(base))) * 100 : null
+  const ComparisonCard = ({ title, data }) => <div className="rounded-xl border border-indigo-100 bg-white p-4"><div className="flex items-center justify-between gap-2"><div className="font-medium text-slate-800">{title}</div><div className="text-xs text-slate-400">{data?.period?.startDate} 至 {data?.period?.endDate}</div></div><div className="mt-3 grid grid-cols-2 gap-2">{comparisonMetrics.map((metric) => { const current = analysis.current_metrics?.[metric.key]; const base = data?.metrics?.[metric.key]; const change = comparisonChange(current, base); return <div key={metric.key} className="rounded-lg bg-slate-50 px-3 py-2"><div className="text-xs text-slate-400">{metric.label}</div><div className="mt-1 flex items-baseline gap-2"><span className="text-sm font-semibold text-slate-700">{metric.format(current)}</span><span className={`text-xs ${change == null ? 'text-slate-400' : change >= 0 ? 'text-green-600' : 'text-red-500'}`}>{change == null ? '基期为 0' : `${change >= 0 ? '+' : ''}${change.toFixed(1)}%`}</span></div><div className="mt-0.5 text-[11px] text-slate-400">基期 {metric.format(base)}</div></div> })}</div></div>
   return (
     <div className="mt-5 rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50/80 to-white p-5">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex items-start gap-3"><div className="rounded-xl bg-indigo-600 p-2 text-white"><Sparkles size={20} /></div><div><div className="font-semibold text-slate-900">AI SEO 智能分析</div><div className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">{analysis.summary}</div></div></div>
         <div className="text-right"><div className="text-xs text-slate-400">SEO 健康分</div><div className="text-3xl font-bold text-indigo-600">{score}<span className="text-sm font-normal text-slate-400">/100</span></div></div>
       </div>
+      {analysis.comparisons && <div className="mt-5"><div className="mb-2 flex items-center gap-2 font-medium text-slate-800"><Activity size={17} className="text-indigo-600" />同比与环比</div><div className="grid gap-3 xl:grid-cols-2"><ComparisonCard title="环比 · 上一等长周期" data={analysis.comparisons.previous} /><ComparisonCard title="同比 · 去年同期" data={analysis.comparisons.yoy} /></div></div>}
       {!!analysis.anomalies?.length && <div className="mt-5"><div className="mb-2 flex items-center gap-2 font-medium text-slate-800"><Activity size={17} className="text-blue-600" />流量峰值归因</div><div className="grid gap-3 xl:grid-cols-2">{analysis.anomalies.map((item, index) => <div key={`${item.date}-${index}`} className="rounded-xl border border-blue-100 bg-white p-4"><div className="flex flex-wrap items-center gap-2"><span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-600">{item.date}</span><span className={`rounded-full px-2 py-0.5 text-xs ${item.confidence === '高' ? 'bg-green-50 text-green-600' : item.confidence === '中' ? 'bg-amber-50 text-amber-600' : 'bg-slate-100 text-slate-500'}`}>置信度 {item.confidence}</span><span className="font-medium text-slate-800">{item.title}</span></div><div className="mt-2 text-xs leading-5 text-slate-500">证据：{item.evidence}</div><div className="mt-2 text-sm leading-6 text-slate-700">可能原因：{item.likely_cause}</div><div className="mt-1 text-xs leading-5 text-indigo-600">验证：{item.verification}</div></div>)}</div></div>}
       {!!analysis.highlights?.length && <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">{analysis.highlights.map((item, index) => <div key={index} className="rounded-xl border border-white bg-white/80 p-4"><div className="font-medium text-slate-800">{item.title}</div><div className="mt-1 text-xs font-medium text-indigo-600">{item.evidence}</div><div className="mt-2 text-sm leading-5 text-slate-500">{item.meaning}</div></div>)}</div>}
       <div className="mt-5 grid gap-4 xl:grid-cols-[1.4fr_1fr]">

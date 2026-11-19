@@ -65,6 +65,40 @@ function breakdownRows(rows: any[] = [], dimensionCount = 2) {
   })
 }
 
+function shiftUtcDate(value: Date, days: number) {
+  const result = new Date(value)
+  result.setUTCDate(result.getUTCDate() + days)
+  return result
+}
+
+function shiftUtcYear(value: Date, years: number) {
+  const result = new Date(value)
+  result.setUTCFullYear(result.getUTCFullYear() + years)
+  return result
+}
+
+function gaSummary(row: any = {}) {
+  const values = row.metricValues || []
+  const sessions = Number(values[1]?.value || 0)
+  const engagedSessions = Number(values[3]?.value || 0)
+  return {
+    users: Number(values[0]?.value || 0),
+    sessions,
+    views: Number(values[2]?.value || 0),
+    newUsers: Number(values[4]?.value || 0),
+    engagement: sessions ? engagedSessions / sessions : 0,
+  }
+}
+
+function searchSummary(row: any = {}) {
+  return {
+    clicks: Number(row.clicks || 0),
+    impressions: Number(row.impressions || 0),
+    ctr: Number(row.ctr || 0),
+    position: Number(row.position || 0),
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405)
@@ -125,6 +159,14 @@ Deno.serve(async (req) => {
       const start = new Date(end); start.setUTCDate(start.getUTCDate() - days + 1)
       const date = (d: Date) => d.toISOString().slice(0, 10)
       const startDate = date(start); const endDate = date(end)
+      const previousEnd = shiftUtcDate(start, -1)
+      const previousStart = shiftUtcDate(previousEnd, -days + 1)
+      const yoyStart = shiftUtcYear(start, -1)
+      const yoyEnd = shiftUtcYear(end, -1)
+      const comparisonPeriods = {
+        previous: { startDate: date(previousStart), endDate: date(previousEnd) },
+        yoy: { startDate: date(yoyStart), endDate: date(yoyEnd) },
+      }
       const gaBody = {
         dateRanges: [{ startDate, endDate }], dimensions: [{ name: 'date' }],
         metrics: ['activeUsers', 'sessions', 'screenPageViews', 'engagedSessions', 'newUsers'].map((name) => ({ name })),
@@ -132,11 +174,22 @@ Deno.serve(async (req) => {
       }
       const gscBase = { startDate, endDate, type: 'web', dataState: 'all' }
       const site = encodeURIComponent(siteUrl)
-      const [ga, gscDaily, gscQueries, gscPages] = await Promise.all([
+      const gaAggregate = (range: { startDate: string; endDate: string }) => googleJson(`https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`, token, {
+        method: 'POST',
+        body: JSON.stringify({ dateRanges: [range], metrics: ['activeUsers', 'sessions', 'screenPageViews', 'engagedSessions', 'newUsers'].map((name) => ({ name })) }),
+      })
+      const gscAggregate = (range: { startDate: string; endDate: string }) => googleJson(`https://www.googleapis.com/webmasters/v3/sites/${site}/searchAnalytics/query`, token, {
+        method: 'POST', body: JSON.stringify({ ...range, type: 'web', dataState: 'all', rowLimit: 1 }),
+      })
+      const [ga, gscDaily, gscQueries, gscPages, gaPrevious, gaYoy, gscPrevious, gscYoy] = await Promise.all([
         googleJson(`https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`, token, { method: 'POST', body: JSON.stringify(gaBody) }),
         googleJson(`https://www.googleapis.com/webmasters/v3/sites/${site}/searchAnalytics/query`, token, { method: 'POST', body: JSON.stringify({ ...gscBase, dimensions: ['date'], rowLimit: 400 }) }),
         googleJson(`https://www.googleapis.com/webmasters/v3/sites/${site}/searchAnalytics/query`, token, { method: 'POST', body: JSON.stringify({ ...gscBase, dimensions: ['query'], rowLimit: 10 }) }),
         googleJson(`https://www.googleapis.com/webmasters/v3/sites/${site}/searchAnalytics/query`, token, { method: 'POST', body: JSON.stringify({ ...gscBase, dimensions: ['page'], rowLimit: 10 }) }),
+        gaAggregate(comparisonPeriods.previous),
+        gaAggregate(comparisonPeriods.yoy),
+        gscAggregate(comparisonPeriods.previous),
+        gscAggregate(comparisonPeriods.yoy),
       ])
       const gaDaily = (ga.rows || []).map((r: any) => {
         const rawDate = r.dimensionValues?.[0]?.value || ''
@@ -146,6 +199,10 @@ Deno.serve(async (req) => {
       }})
       const searchDaily = (gscDaily.rows || []).map((r: any) => ({ date: r.keys?.[0] || '', clicks: Number(r.clicks || 0), impressions: Number(r.impressions || 0), ctr: Number(r.ctr || 0), position: Number(r.position || 0) }))
       const top = (rows: any[] = []) => rows.map((r: any) => ({ key: r.keys?.[0] || '', clicks: Number(r.clicks || 0), impressions: Number(r.impressions || 0), ctr: Number(r.ctr || 0), position: Number(r.position || 0) }))
+      const comparisons = {
+        previous: { period: comparisonPeriods.previous, metrics: { ...gaSummary(gaPrevious.rows?.[0]), ...searchSummary(gscPrevious.rows?.[0]) } },
+        yoy: { period: comparisonPeriods.yoy, metrics: { ...gaSummary(gaYoy.rows?.[0]), ...searchSummary(gscYoy.rows?.[0]) } },
+      }
       const spikes = findTrafficSpikes(gaDaily)
       let anomalyDiagnostics: any[] = []
       if (spikes.length) {
@@ -186,7 +243,7 @@ Deno.serve(async (req) => {
           devices: rows[3].filter((row: any) => row.date === spike.date).slice(0, 10),
         }))
       }
-      return json({ startDate, endDate, gaDaily, searchDaily, topQueries: top(gscQueries.rows), topPages: top(gscPages.rows), anomalyDiagnostics })
+      return json({ startDate, endDate, gaDaily, searchDaily, topQueries: top(gscQueries.rows), topPages: top(gscPages.rows), anomalyDiagnostics, comparisons })
     }
     return json({ error: '未知操作' }, 400)
   } catch (e) {
