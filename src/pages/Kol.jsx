@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Star, Users, Globe, Plus, CheckCircle2, Clock, Gift, Newspaper, Search, ExternalLink, ShieldCheck, Languages, BarChart3, FileSearch } from 'lucide-react'
+import { Star, Users, Globe, Plus, CheckCircle2, Clock, Gift, Newspaper, Search, ExternalLink, ShieldCheck, Languages, BarChart3, FileSearch, Video } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { Card, StatCard } from '../components/ui/Card'
 import PageHeader from '../components/ui/PageHeader'
 import { Button, Badge, EmptyState } from '../components/ui/Common'
 import { MEDIA_OUTLETS } from '../data/mediaOutlets'
 import { AUDIENCE_MARKETS, COMPETITOR_CATEGORIES, COMPETITOR_NAMES, COMPETITOR_ORIGINS, COMPETITOR_PROFILES, COVERAGE_AUDIT_DATE, COVERAGE_OUTLET_MARKETS, MEDIA_COMPETITOR_COVERAGE } from '../data/mediaCompetitorCoverage'
+import { COMPETITOR_INFLUENCER_COVERAGE, INFLUENCER_AUDIT_DATE, INFLUENCER_EVIDENCE_TYPES, INFLUENCER_PLATFORMS } from '../data/competitorInfluencerCoverage'
 
 export default function Kol() {
   const [tab, setTab] = useState('kol')
@@ -22,6 +23,8 @@ export default function Kol() {
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [marketFilter, setMarketFilter] = useState('all')
   const [originFilter, setOriginFilter] = useState('all')
+  const [influencerPlatform, setInfluencerPlatform] = useState('all')
+  const [influencerEvidence, setInfluencerEvidence] = useState('all')
 
   async function load() {
     setLoading(true)
@@ -90,6 +93,23 @@ export default function Kol() {
     .sort((a, b) => (b.publishedAt || '').localeCompare(a.publishedAt || '')), [categoryFilter, competitorFilter, competitorProfileMap, marketFilter, originFilter])
   const coveredCompetitors = useMemo(() => new Set(MEDIA_COMPETITOR_COVERAGE.map((item) => item.competitor)), [])
   const coveredOutlets = useMemo(() => new Set(MEDIA_COMPETITOR_COVERAGE.map((item) => item.outlet)), [])
+  const influencerFrequency = useMemo(() => {
+    const counts = new Map()
+    COMPETITOR_INFLUENCER_COVERAGE.forEach((item) => {
+      const key = `${item.creator}::${item.competitor}`
+      counts.set(key, (counts.get(key) || 0) + 1)
+    })
+    return counts
+  }, [])
+  const filteredInfluencerCoverage = useMemo(() => COMPETITOR_INFLUENCER_COVERAGE
+    .filter((item) => competitorFilter === 'all' || item.competitor === competitorFilter)
+    .filter((item) => categoryFilter === 'all' || competitorProfileMap.get(item.competitor)?.categories.includes(categoryFilter))
+    .filter((item) => originFilter === 'all' || getCompetitorOrigin(competitorProfileMap.get(item.competitor)) === originFilter)
+    .filter((item) => influencerPlatform === 'all' || item.platform === influencerPlatform)
+    .filter((item) => influencerEvidence === 'all' || item.evidenceType === influencerEvidence)
+    .sort((a, b) => (b.publishedAt || '').localeCompare(a.publishedAt || '')), [categoryFilter, competitorFilter, competitorProfileMap, influencerEvidence, influencerPlatform, originFilter])
+  const coveredInfluencers = useMemo(() => new Set(COMPETITOR_INFLUENCER_COVERAGE.map((item) => item.creator)), [])
+  const influencerCompetitors = useMemo(() => new Set(COMPETITOR_INFLUENCER_COVERAGE.map((item) => item.competitor)), [])
 
   return (
     <div>
@@ -181,6 +201,9 @@ export default function Kol() {
             <button onClick={() => setMediaView('coverage')} className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium ${mediaView === 'coverage' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>
               <BarChart3 size={16} /> 竞品露出与频率
             </button>
+            <button onClick={() => setMediaView('influencers')} className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium ${mediaView === 'influencers' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>
+              <Video size={16} /> 竞品达人合作
+            </button>
           </div>
 
           {mediaView === 'directory' ? <>
@@ -257,7 +280,7 @@ export default function Kol() {
             </table>
             )}
           </Card>
-          </> : <>
+          </> : mediaView === 'coverage' ? <>
             <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
               <StatCard icon={<FileSearch size={20} />} value={MEDIA_COMPETITOR_COVERAGE.length} label="已核验露出" />
               <StatCard icon={<Newspaper size={20} />} value={coveredOutlets.size} label="出现媒体" />
@@ -325,6 +348,84 @@ export default function Kol() {
                 </tbody>
               </table>
             </Card>
+          </> : <>
+            <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
+              <StatCard icon={<FileSearch size={20} />} value={COMPETITOR_INFLUENCER_COVERAGE.length} label="已核验内容" />
+              <StatCard icon={<Users size={20} />} value={coveredInfluencers.size} label="合作达人" />
+              <StatCard icon={<ShieldCheck size={20} />} value={influencerCompetitors.size} label="出现竞品" />
+              <StatCard icon={<Video size={20} />} value={new Set(COMPETITOR_INFLUENCER_COVERAGE.map((item) => item.platform)).size} label="已取证平台" />
+            </div>
+
+            <Card className="mb-4">
+              <div className="flex flex-col gap-3">
+                <div>
+                  <div className="font-semibold text-slate-800">竞品达人合作反查</div>
+                  <div className="mt-1 text-sm text-slate-400">仅收录公开页面可验证的赞助、PR 或商业披露；频率为当前核验样本，不代表全网完整合作次数 · 指标为 {INFLUENCER_AUDIT_DATE} 快照</div>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+                  <select value={influencerPlatform} onChange={(event) => setInfluencerPlatform(event.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600">
+                    <option value="all">全部平台</option>
+                    {INFLUENCER_PLATFORMS.map((platform) => <option key={platform} value={platform}>{platform}</option>)}
+                  </select>
+                  <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600">
+                    <option value="all">全部类目</option>
+                    {COMPETITOR_CATEGORIES.map((category) => <option key={category} value={category}>{category}</option>)}
+                  </select>
+                  <select value={originFilter} onChange={(event) => setOriginFilter(event.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600">
+                    <option value="all">全部品牌来源</option>
+                    {COMPETITOR_ORIGINS.map((origin) => <option key={origin} value={origin}>{origin}</option>)}
+                  </select>
+                  <select value={influencerEvidence} onChange={(event) => setInfluencerEvidence(event.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600">
+                    <option value="all">全部合作证据</option>
+                    {INFLUENCER_EVIDENCE_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
+                  </select>
+                  <select value={competitorFilter} onChange={(event) => setCompetitorFilter(event.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600">
+                    <option value="all">全部竞品</option>
+                    {COMPETITOR_NAMES.filter((name) => categoryFilter === 'all' || competitorProfileMap.get(name)?.categories.includes(categoryFilter)).filter((name) => originFilter === 'all' || getCompetitorOrigin(competitorProfileMap.get(name)) === originFilter).map((name) => <option key={name} value={name}>{name}{influencerCompetitors.has(name) ? '' : '（本轮未检出）'}</option>)}
+                  </select>
+                </div>
+              </div>
+            </Card>
+
+            <Card className="overflow-x-auto p-0">
+              {filteredInfluencerCoverage.length === 0 ? <EmptyState icon={<Video size={28} />} title="本轮没有匹配的达人合作证据" hint="可切换平台、类目、品牌来源或竞品；未检出不代表没有合作" /> : (
+              <table className="w-full min-w-[1180px] text-sm">
+                <thead className="border-b border-slate-100 text-left text-xs text-slate-400">
+                  <tr>
+                    <th className="px-5 py-3">达人 / 平台</th><th className="px-5 py-3">竞品 / 类目</th><th className="px-5 py-3">合作内容</th>
+                    <th className="px-5 py-3">证据与判断</th><th className="px-5 py-3">公开指标快照</th><th className="px-5 py-3">核验频率</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredInfluencerCoverage.map((item) => (
+                    <tr key={item.id} className="border-b border-slate-50 align-top hover:bg-slate-50">
+                      <td className="min-w-52 px-5 py-4">
+                        <div className="font-semibold text-slate-700">{item.creator}</div>
+                        <div className="mt-1 text-xs text-slate-500">{item.handle}</div>
+                        <div className="mt-2"><Badge color="blue">{item.platform}</Badge></div>
+                      </td>
+                      <td className="min-w-56 px-5 py-4">
+                        <div className="font-semibold text-slate-700">{item.competitor}</div>
+                        <div className="mt-2 flex flex-wrap gap-1"><Badge color={getCompetitorOrigin(competitorProfileMap.get(item.competitor)) === '中国出海' ? 'orange' : 'slate'}>{getCompetitorOrigin(competitorProfileMap.get(item.competitor))}</Badge>{competitorProfileMap.get(item.competitor)?.categories.map((category) => <Badge key={category} color="blue">{category}</Badge>)}</div>
+                      </td>
+                      <td className="max-w-[360px] px-5 py-4">
+                        <a href={item.url} target="_blank" rel="noreferrer" className="inline-flex items-start gap-1 font-medium text-brand-600 hover:underline">{item.title}<ExternalLink size={13} className="mt-0.5 shrink-0" /></a>
+                        <div className="mt-1 text-xs text-slate-400">{item.publishedAt}</div>
+                      </td>
+                      <td className="max-w-[390px] px-5 py-4">
+                        <div className="flex flex-wrap gap-1"><Badge color={item.evidenceType === '明确赞助' ? 'green' : item.evidenceType === 'PR / 商业内容' ? 'orange' : 'slate'}>{item.evidenceType}</Badge><Badge color={item.confidence === '高' ? 'green' : 'orange'}>{item.confidence}置信度</Badge></div>
+                        <div className="mt-2 text-xs leading-5 text-slate-500">{item.relationship}</div>
+                      </td>
+                      <td className="min-w-44 px-5 py-4 text-xs leading-6 text-slate-500">
+                        <div>粉丝 {formatMetric(item.followers)}</div><div>播放 {formatMetric(item.views)}</div><div className="text-slate-400">截至 {item.metricsAsOf}</div>
+                      </td>
+                      <td className="min-w-32 px-5 py-4 font-semibold text-slate-700">{influencerFrequency.get(`${item.creator}::${item.competitor}`)} 条</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              )}
+            </Card>
           </>}
         </>
       )}
@@ -358,4 +459,9 @@ function getMediaMarket(item) {
 
 function getCompetitorOrigin(profile) {
   return profile?.origin || '海外品牌'
+}
+
+function formatMetric(value) {
+  if (value === null || value === undefined) return '未公开'
+  return new Intl.NumberFormat('zh-CN', { notation: 'compact', maximumFractionDigits: 1 }).format(value)
 }
