@@ -30,6 +30,52 @@ function cleanDiagnostics(value: unknown) {
   }))
 }
 
+function median(values: number[]) {
+  if (!values.length) return 0
+  const sorted = [...values].sort((a, b) => a - b)
+  const middle = Math.floor(sorted.length / 2)
+  return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2
+}
+
+function inferDiagnostics(gaDaily: any[], searchDaily: any[]) {
+  return gaDaily.map((row, index) => {
+    const previous = gaDaily.slice(Math.max(0, index - 14), index).map((item) => Number(item.activeUsers || 0))
+    const baselineUsers = median(previous)
+    const activeUsers = Number(row.activeUsers || 0)
+    const search = searchDaily.find((item) => item.date === row.date) || {}
+    return { ...row, baselineUsers, lift: baselineUsers ? activeUsers / baselineUsers : 0, organicClicks: Number(search.clicks || 0), organicImpressions: Number(search.impressions || 0), sources: [], landingPages: [], countries: [], devices: [] }
+  }).filter((row) => row.baselineUsers >= 3 && row.activeUsers >= Math.max(30, row.baselineUsers * 2.5) && row.activeUsers - row.baselineUsers >= 25)
+    .sort((a, b) => (b.activeUsers - b.baselineUsers) - (a.activeUsers - a.baselineUsers))
+    .slice(0, 3)
+}
+
+function fallbackAnomalies(diagnostics: any[], searchDaily: any[]) {
+  return diagnostics.map((item) => {
+    const topSource = item.sources?.[0]
+    const topLanding = item.landingPages?.[0]
+    const search = searchDaily.find((row) => row.date === item.date) || {}
+    const organicClicks = Number(item.organicClicks ?? search.clicks ?? 0)
+    const organicImpressions = Number(item.organicImpressions ?? search.impressions ?? 0)
+    const share = topSource && item.activeUsers ? Number(topSource.activeUsers || 0) / Number(item.activeUsers) : 0
+    const sourceEvidence = topSource ? `最大来源“${topSource.key}”带来 ${topSource.activeUsers} 个活跃用户${share ? `（占 ${Math.round(share * 100)}%）` : ''}` : '本次数据未返回来源/媒介明细'
+    const sourceKey = String(topSource?.key || '').toLowerCase()
+    let likelyCause = '该峰值明显不是自然搜索点击直接带来，但缺少渠道明细，无法确认具体来源。'
+    if (/paid|cpc|ppc|display/.test(sourceKey)) likelyCause = '峰值主要与付费广告流量同期出现，更可能由投放活动带来。'
+    else if (/social|facebook|instagram|linkedin|tiktok|youtube/.test(sourceKey)) likelyCause = '峰值主要与社媒渠道流量同期出现，更可能由社媒内容或推广带来。'
+    else if (/referral/.test(sourceKey)) likelyCause = '峰值主要来自引荐流量，应进一步核对对应外部网站或合作链接。'
+    else if (/organic/.test(sourceKey)) likelyCause = '峰值与自然流量来源同期出现，但需结合 Search Console 点击数核对是否真为 Google 搜索贡献。'
+    else if (/direct|\(none\)/.test(sourceKey)) likelyCause = '峰值主要被归类为直接访问，可能包含未加 UTM 的广告/社媒链接、内部访问或异常流量。'
+    return {
+      date: item.date,
+      title: `${item.activeUsers} 个活跃用户的异常峰值`,
+      evidence: `当日 ${item.activeUsers} 个活跃用户，过去 14 个数据日中位数约 ${Number(item.baselineUsers || 0).toFixed(1)}，约为平时的 ${Number(item.lift || 0).toFixed(1)} 倍；自然搜索仅 ${organicClicks} 次点击 / ${organicImpressions} 次曝光。${sourceEvidence}${topLanding ? `；最大落地页为“${topLanding.key}”` : ''}。`,
+      likely_cause: likelyCause,
+      confidence: topSource ? (share >= 0.6 ? '高' : '中') : '低',
+      verification: topSource ? '对照当日广告、社媒和活动发布记录，并检查主要落地页的参与率、转化和 UTM 标记。' : '重新点击“同步”获取异常日的来源/媒介、落地页、国家和设备明细，再核对内部 IP 与活动记录。',
+    }
+  })
+}
+
 function parseJson(content: string) {
   const normalized = content.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '')
   return JSON.parse(normalized)
@@ -44,14 +90,18 @@ Deno.serve(async (req) => {
   if (!apiKey) return json({ error: 'AI 分析服务尚未配置' }, 503)
 
   const body = await req.json().catch(() => ({}))
+  const gaDaily = cleanRows(body.gaDaily, 200) as any[]
+  const searchDaily = cleanRows(body.searchDaily, 200) as any[]
+  const providedDiagnostics = cleanDiagnostics(body.anomalyDiagnostics)
+  const anomalyDiagnostics = providedDiagnostics.length ? providedDiagnostics : inferDiagnostics(gaDaily, searchDaily)
   const input = {
     period: body.period || {},
     metrics: body.metrics || {},
-    gaDaily: cleanRows(body.gaDaily, 200),
-    searchDaily: cleanRows(body.searchDaily, 200),
+    gaDaily,
+    searchDaily,
     topQueries: cleanRows(body.topQueries, 30),
     topPages: cleanRows(body.topPages, 30),
-    anomalyDiagnostics: cleanDiagnostics(body.anomalyDiagnostics),
+    anomalyDiagnostics,
   }
 
   const system = `你是资深国际站 SEO 与增长分析师。请根据提供的 GA4 和 Google Search Console 数据，输出简体中文、证据驱动、可执行的分析。不得虚构数据，不得把相关性说成因果。数据只有当前周期时，可比较周期前后半段，但必须明确口径。重点识别：流量质量、自然搜索表现、低 CTR 高曝光机会、接近首页的关键词、落地页机会、异常和下一步动作。
@@ -94,7 +144,9 @@ anomalies 对每个输入异常日期各输出1项，无异常时返回空数组
     if (!response.ok) return json({ error: result?.error?.message || `Gemini 服务 HTTP ${response.status}` }, 502)
     const content = result?.candidates?.[0]?.content?.parts?.map((part: { text?: string }) => part?.text || '').join('')
     if (!content) return json({ error: 'AI 未返回分析结果' }, 502)
-    return json({ analysis: parseJson(content), model, generated_at: new Date().toISOString() })
+    const analysis = parseJson(content)
+    if (anomalyDiagnostics.length && (!Array.isArray(analysis.anomalies) || !analysis.anomalies.length)) analysis.anomalies = fallbackAnomalies(anomalyDiagnostics, searchDaily)
+    return json({ analysis, model, generated_at: new Date().toISOString() })
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : String(e) }, 502)
   }
