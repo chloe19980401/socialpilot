@@ -19,6 +19,17 @@ const WEB_CHART_METRICS = [
   { key: 'ctrPosition', label: 'CTR / 排名', axis: 'rate', lines: [{ dataKey: 'ctr', name: 'CTR', color: '#ec4899', suffix: '%' }, { dataKey: 'position', name: '平均排名', color: '#f97316' }] },
 ]
 const WEB_CHART_METRIC_MAP = Object.fromEntries(WEB_CHART_METRICS.map((metric) => [metric.key, metric]))
+const GOOGLE_REPORT_CACHE_KEY = 'socialpilot_google_report_cache_v1'
+
+function readGoogleReportCache(config) {
+  try {
+    const cached = JSON.parse(localStorage.getItem(GOOGLE_REPORT_CACHE_KEY) || 'null')
+    if (!cached?.report || cached.ga_property_id !== config.ga_property_id || cached.gsc_site_url !== config.gsc_site_url) return null
+    return cached
+  } catch {
+    return null
+  }
+}
 
 export default function Ecommerce() {
   const { profile } = useAuth()
@@ -35,8 +46,10 @@ export default function Ecommerce() {
     ga_property_id: localStorage.getItem('socialpilot_ga_property_id') || '',
     gsc_site_url: localStorage.getItem('socialpilot_gsc_site_url') || '',
   }))
-  const [googleReport, setGoogleReport] = useState(null)
-  const [googleDays, setGoogleDays] = useState(28)
+  const [initialGoogleCache] = useState(() => readGoogleReportCache(googleConfig))
+  const [googleReport, setGoogleReport] = useState(() => initialGoogleCache?.report || null)
+  const [googleDays, setGoogleDays] = useState(() => Number(initialGoogleCache?.days) || 28)
+  const [googleReportCachedAt, setGoogleReportCachedAt] = useState(() => initialGoogleCache?.saved_at || '')
   const [googleLoading, setGoogleLoading] = useState(false)
   const [googleError, setGoogleError] = useState('')
   const [seoAnalysis, setSeoAnalysis] = useState(null)
@@ -74,23 +87,32 @@ export default function Ecommerce() {
     return data
   }
 
-  async function loadGoogle(days = googleDays) {
+  async function loadGoogle(days = googleDays, { refreshReport = true } = {}) {
     setGoogleLoading(true); setGoogleError('')
     try {
       const status = await googleCall('status')
       setGoogleStatus(status)
       if (status.reconnect_required) setGoogleError(`Google 授权已失效，请重新连接。${status.error ? `（${status.error}）` : ''}`)
-      if (status.connected && googleConfig.ga_property_id && googleConfig.gsc_site_url) setGoogleReport(await googleCall('report', { days, ...googleConfig }))
-      else if (status.connected && profile?.role === 'admin') setGoogleOptions(await googleCall('discover'))
+      if (status.connected && googleConfig.ga_property_id && googleConfig.gsc_site_url && (refreshReport || !googleReport)) {
+        const report = await googleCall('report', { days, ...googleConfig })
+        const savedAt = new Date().toISOString()
+        setGoogleReport(report)
+        setGoogleReportCachedAt(savedAt)
+        localStorage.setItem(GOOGLE_REPORT_CACHE_KEY, JSON.stringify({ ...googleConfig, days, saved_at: savedAt, report }))
+      }
+      else if (status.connected && profile?.role === 'admin' && (!googleConfig.ga_property_id || !googleConfig.gsc_site_url)) setGoogleOptions(await googleCall('discover'))
     } catch (e) {
       setGoogleError(e.message || 'Google 数据加载失败')
     } finally { setGoogleLoading(false) }
   }
-  useEffect(() => { loadGoogle() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { loadGoogle(googleDays, { refreshReport: !googleReport }) }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function connectGoogle() {
     setGoogleLoading(true); setGoogleError('')
     try {
+      localStorage.removeItem(GOOGLE_REPORT_CACHE_KEY)
+      setGoogleReport(null)
+      setGoogleReportCachedAt('')
       const { data, error } = await supabase.functions.invoke('google-web-oauth', { body: {} })
       if (error) throw error
       if (data?.error) throw new Error(data.error)
@@ -277,7 +299,7 @@ export default function Ecommerce() {
               </div>
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-1"><TopList title="热门搜索词" rows={googleReport.topQueries} /><TopList title="热门落地页" rows={googleReport.topPages} /></div>
             </div>
-            <div className="mt-3 text-right text-xs text-slate-400">数据区间 {googleReport.startDate} 至 {googleReport.endDate} · GA4 与 GSC 数据可能有 1–3 天延迟</div>
+            <div className="mt-3 text-right text-xs text-slate-400">数据区间 {googleReport.startDate} 至 {googleReport.endDate}{googleReportCachedAt && ` · 上次同步 ${new Date(googleReportCachedAt).toLocaleString('zh-CN')}`} · GA4 与 GSC 数据可能有 1–3 天延迟</div>
             {seoError && <div className="mt-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">{seoError}</div>}
             {seoAnalysis && <SeoAnalysis analysis={seoAnalysis} />}
           </div>
