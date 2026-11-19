@@ -20,6 +20,11 @@ const isOverdue = (d) => d && new Date(d) < new Date(new Date().toDateString())
 const DESIGN_REFERENCE = {
   'daiyuting@foreverdoodle.com': { email: 'zlzl@foreverdoodle.com', name: '赵琳' },
 }
+const DESIGNER_NAMES = {
+  'zlzl@foreverdoodle.com': '赵琳',
+  'daiyuting@foreverdoodle.com': '戴雨婷',
+}
+const DEFAULT_DESIGNER_EMAIL = 'daiyuting@foreverdoodle.com'
 
 // 用时：已完成算 开始→完成，进行中算 开始→今天（首日计为第 1 天）；开始日未到则显示「—」
 function durationLabel(r) {
@@ -33,7 +38,7 @@ function durationLabel(r) {
   return r.status === 'done' ? `用时 ${days} 天` : `已 ${days} 天`
 }
 
-const emptyReq = () => ({ id: null, title: '', category: '', brand_id: '', content_type: '', priority: 'normal', status: 'todo', start_date: '', due_date: '', ref_url: '', note: '' })
+const emptyReq = () => ({ id: null, title: '', category: '', brand_id: '', content_type: '', priority: 'normal', status: 'todo', start_date: '', due_date: '', ref_url: '', note: '', assignee_email: '' })
 
 export default function DesignStudio() {
   const { profile } = useAuth()
@@ -48,11 +53,13 @@ export default function DesignStudio() {
   const [referenceRequests, setReferenceRequests] = useState([])
   const [brands, setBrands] = useState([])
   const [accounts, setAccounts] = useState([])
+  const [people, setPeople] = useState([])
   const [loading, setLoading] = useState(true)
   const [uploadingId, setUploadingId] = useState(null)
 
   const [fTag, setFTag] = useState('all')
   const [fStage, setFStage] = useState('all')
+  const [fDesigner, setFDesigner] = useState('all')
   const [extraTags, setExtraTags] = useState([])
 
   const [modalOpen, setModalOpen] = useState(false)
@@ -61,11 +68,12 @@ export default function DesignStudio() {
 
   const load = useCallback(async () => {
     setLoading(true)
-    const [{ data: pl }, { data: rq }, { data: br }, { data: ac }] = await Promise.all([
+    const [{ data: pl }, { data: rq }, { data: br }, { data: ac }, { data: pe }] = await Promise.all([
       supabase.from('content_plans').select('*').order('scheduled_at', { ascending: true }),
       supabase.from('design_requests').select('*').order('due_date', { ascending: true, nullsFirst: false }),
       supabase.from('brands').select('id, name, color'),
       supabase.from('accounts').select('id, display_name, handle, platform, brand_id'),
+      supabase.from('profiles').select('id, email, name, role').order('name'),
     ])
     // 管理员看全部已指派设计师的排期；设计师只看指派给自己的。已发布的设计已无意义，不再进设计台
     const allPlans = pl || []
@@ -80,12 +88,14 @@ export default function DesignStudio() {
       : [])
     setBrands(br || [])
     setAccounts(ac || [])
+    setPeople(pe || [])
     setLoading(false)
   }, [me, isAdmin, referenceOwner])
   useEffect(() => { load() }, [load])
 
   const brandMap = useMemo(() => Object.fromEntries(brands.map((b) => [b.id, b])), [brands])
   const accountMap = useMemo(() => Object.fromEntries(accounts.map((a) => [a.id, a])), [accounts])
+  const peopleMap = useMemo(() => Object.fromEntries(people.map((p) => [p.email, p])), [people])
 
   /* ---------- 排期任务：更新 ---------- */
   const patchPlan = useCallback(async (id, fields) => {
@@ -118,17 +128,22 @@ export default function DesignStudio() {
   }
 
   /* ---------- 手动需求：增删改 ---------- */
-  function openNew() { setForm(emptyReq()); setModalOpen(true) }
+  function openNew() {
+    setForm({ ...emptyReq(), assignee_email: isAdmin ? DEFAULT_DESIGNER_EMAIL : me })
+    setModalOpen(true)
+  }
   function openEdit(r) {
     setForm({
       id: r.id, title: r.title || '', category: r.category || '', brand_id: r.brand_id || '',
       content_type: r.content_type || '', priority: r.priority || 'normal', status: r.status || 'todo',
       start_date: r.start_date || '', due_date: r.due_date || '', ref_url: r.ref_url || '', note: r.note || '',
+      assignee_email: r.assignee_email || '',
     })
     setModalOpen(true)
   }
   async function saveRequest() {
     if (!form.title.trim()) { alert('请填写标题'); return }
+    if (isAdmin && !form.assignee_email) { alert('请选择设计师'); return }
     setSaving(true)
     const orig = requests.find((x) => x.id === form.id)
     const payload = {
@@ -138,12 +153,13 @@ export default function DesignStudio() {
       done_at: form.status === 'done' ? (orig?.done_at || new Date().toISOString()) : null,
       ref_url: form.ref_url || null, note: form.note || null, updated_at: new Date().toISOString(),
     }
+    if (isAdmin) payload.assignee_email = form.assignee_email
     let error
     if (form.id) {
       ({ error } = await supabase.from('design_requests').update(payload).eq('id', form.id))
     } else {
       payload.created_by = me
-      payload.assignee_email = me
+      payload.assignee_email = isAdmin ? form.assignee_email : me
       ;({ error } = await supabase.from('design_requests').insert(payload))
     }
     setSaving(false)
@@ -179,8 +195,10 @@ export default function DesignStudio() {
   const rows = useMemo(() => {
     const planRows = plans.map((p) => {
       const deadline = p.design_due || p.scheduled_at   // 优先按设计交付日排序/判逾期
+      const designerEmail = p.designer_email || ''
       return {
         _src: 'plan', id: p.id, raw: p, title: p.title || '未命名', tag: AUTO_TAG,
+        designerEmail, designerName: p.designer_name || peopleMap[designerEmail]?.name || DESIGNER_NAMES[designerEmail] || designerEmail.split('@')[0] || '未分配',
         stage: PLAN_TO_STAGE[p.design_status || 'pending'] || 'todo',
         priority: null, start_date: null, done_at: null, due: deadline,
         dueOverdue: deadline && new Date(deadline) < new Date() && (p.design_status || 'pending') !== 'done',
@@ -188,11 +206,19 @@ export default function DesignStudio() {
     })
     const reqRows = requests.map((r) => ({
       _src: 'request', id: r.id, raw: r, title: r.title, tag: r.category || '未分类',
+      designerEmail: r.assignee_email || '', designerName: peopleMap[r.assignee_email]?.name || DESIGNER_NAMES[r.assignee_email] || r.assignee_email?.split('@')[0] || '未分配',
       stage: r.status || 'todo', priority: r.priority, start_date: r.start_date, done_at: r.done_at,
       due: r.due_date, dueOverdue: isOverdue(r.due_date) && r.status !== 'done',
     }))
     return [...planRows, ...reqRows]
-  }, [plans, requests])
+  }, [plans, requests, peopleMap])
+
+  const designerOptions = useMemo(() => {
+    const names = new Map()
+    people.filter((p) => p.role === 'designer').forEach((p) => names.set(p.email, p.name || DESIGNER_NAMES[p.email] || p.email.split('@')[0]))
+    rows.forEach((r) => { if (r.designerEmail) names.set(r.designerEmail, r.designerName) })
+    return [...names.entries()].map(([email, name]) => ({ email, name })).sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'))
+  }, [rows, people])
 
   const allTags = useMemo(() => {
     const s = new Set(BASE_TAGS)
@@ -201,7 +227,8 @@ export default function DesignStudio() {
     return [...s]
   }, [requests, extraTags])
 
-  const tagFilteredRows = rows.filter((r) => fTag === 'all' || r.tag === fTag)
+  const designerFilteredRows = rows.filter((r) => fDesigner === 'all' || r.designerEmail === fDesigner)
+  const tagFilteredRows = designerFilteredRows.filter((r) => fTag === 'all' || r.tag === fTag)
   const stageCounts = useMemo(() => {
     const c = { todo: 0, doing: 0, done: 0 }
     tagFilteredRows.forEach((r) => { c[r.stage] = (c[r.stage] || 0) + 1 })
@@ -243,6 +270,18 @@ export default function DesignStudio() {
         })}
       </div>
 
+      {isAdmin && (
+        <div className="mb-3 flex flex-wrap items-center gap-1.5">
+          <span className="mr-1 inline-flex items-center gap-1 text-xs text-slate-400"><User size={12} /> 设计师</span>
+          <button onClick={() => setFDesigner('all')}
+            className={`rounded-full px-3 py-1 text-xs transition ${fDesigner === 'all' ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>全部</button>
+          {designerOptions.map((designer) => (
+            <button key={designer.email} onClick={() => setFDesigner(fDesigner === designer.email ? 'all' : designer.email)}
+              className={`rounded-full px-3 py-1 text-xs transition ${fDesigner === designer.email ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>{designer.name}</button>
+          ))}
+        </div>
+      )}
+
       {/* 标签筛选 */}
       <div className="mb-4 flex flex-wrap items-center gap-1.5">
         <span className="mr-1 inline-flex items-center gap-1 text-xs text-slate-400"><TagIcon size={12} /> 标签</span>
@@ -264,10 +303,11 @@ export default function DesignStudio() {
       ) : (
         <Card className="p-0 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[960px] text-sm">
+            <table className={`w-full ${isAdmin ? 'min-w-[1060px]' : 'min-w-[960px]'} text-sm`}>
               <thead>
                 <tr className="border-b border-slate-100 text-left text-xs text-slate-400">
                   <th className="px-4 py-3 font-medium">任务</th>
+                  {isAdmin && <th className="px-4 py-3 font-medium">设计师</th>}
                   <th className="px-4 py-3 font-medium">标签</th>
                   <th className="px-4 py-3 font-medium">优先级</th>
                   <th className="px-4 py-3 font-medium">开始 · 用时</th>
@@ -338,6 +378,16 @@ export default function DesignStudio() {
           <div className="col-span-2">
             <Field label="标题 *"><input className={inputClass} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="例如：王力工程画册61P" /></Field>
           </div>
+          {isAdmin && (
+            <div className="col-span-2">
+              <Field label="设计师 *">
+                <select className={inputClass} value={form.assignee_email} onChange={(e) => setForm({ ...form, assignee_email: e.target.value })}>
+                  <option value="">请选择设计师</option>
+                  {people.filter((p) => p.role === 'designer').map((p) => <option key={p.id} value={p.email}>{p.name || DESIGNER_NAMES[p.email] || p.email}</option>)}
+                </select>
+              </Field>
+            </div>
+          )}
           <Field label="标签">
             <select className={inputClass} value={form.category} onChange={(e) => handleCategoryChange(e.target.value)}>
               <option value="">未分类</option>
@@ -398,7 +448,6 @@ function TaskRow({ row, brandMap, accountMap, isAdmin, uploading, onPlanStage, o
           {isPlan && accs.map((a) => { const m = platformMeta(a.platform); return <span key={a.id} className="inline-flex items-center gap-1" style={{ color: m.color }} title={m.label}><m.Icon size={11} />{a.display_name || a.handle}</span> })}
           {p.content_type && <span>{contentTypeLabel(p.content_type)}</span>}
           {isPlan && p.assignee_name && <span className="inline-flex items-center gap-1" title="排期运营"><User size={10} />{p.assignee_name}</span>}
-          {isPlan && isAdmin && p.designer_name && <span className="inline-flex items-center gap-1 text-brand-500" title="设计师"><Palette size={10} />{p.designer_name}</span>}
           {!isPlan && p.note && <span>{p.note}</span>}
           {p.ref_url && <a href={p.ref_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-brand-600 hover:underline"><Link2 size={10} />参考</a>}
           {isPlan && p.asset_url && <a href={p.asset_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-brand-600 hover:underline"><Link2 size={10} />素材</a>}
@@ -410,6 +459,7 @@ function TaskRow({ row, brandMap, accountMap, isAdmin, uploading, onPlanStage, o
           </div>
         )}
       </td>
+      {isAdmin && <td className="px-4 py-3"><Badge color={row.designerName === '赵琳' ? 'slate' : 'blue'}><Palette size={10} className="mr-1" />{row.designerName}</Badge></td>}
       {/* 标签 */}
       <td className="px-4 py-3"><Badge color={tagColor(row.tag)}>{row.tag}</Badge></td>
       {/* 优先级 */}
