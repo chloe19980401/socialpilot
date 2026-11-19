@@ -11,10 +11,8 @@ import { ASSOCIATION_AUDIT_DATE, INDUSTRY_ASSOCIATIONS, INDUSTRY_ASSOCIATION_CAT
 import { ASSOCIATION_COVERAGE_AUDIT_DATE, ASSOCIATION_EVENT_ROLES, ASSOCIATION_RELATIONSHIP_TYPES, COMPETITOR_ASSOCIATION_COVERAGE, COMPETITOR_ASSOCIATION_EVENTS, COMPETITOR_EXHIBITION_EVENTS, EXHIBITION_FIT_LEVELS, EXHIBITION_INFLUENCE_LEVELS, EXHIBITION_RELATION_TYPES } from '../data/competitorAssociationCoverage'
 
 export default function Kol() {
-  const [tab, setTab] = useState('kol')
+  const [tab, setTab] = useState('media')
   const [kols, setKols] = useState([])
-  const [brands, setBrands] = useState([])
-  const [brandFilter, setBrandFilter] = useState('all')
   const [product, setProduct] = useState('all')
   const [loading, setLoading] = useState(true)
   const [mediaSearch, setMediaSearch] = useState('')
@@ -51,13 +49,11 @@ export default function Kol() {
 
   async function load() {
     setLoading(true)
-    const [{ data: k }, { data: b }, mediaResult] = await Promise.all([
+    const [{ data: k }, mediaResult] = await Promise.all([
       supabase.from('kols').select('*'),
-      supabase.from('brands').select('*'),
       supabase.from('media_outlet_contacts').select('*'),
     ])
     setKols(k || [])
-    setBrands(b || [])
     if (mediaResult.error) {
       setMediaContactError(mediaResult.error.message)
     } else {
@@ -72,11 +68,9 @@ export default function Kol() {
 
   const filtered = useMemo(() => {
     return kols.filter(
-      (k) =>
-        (brandFilter === 'all' || k.brand_id === brandFilter) &&
-        (product === 'all' || k.product === product)
+      (k) => product === 'all' || k.product === product
     )
-  }, [kols, brandFilter, product])
+  }, [kols, product])
 
   const stats = useMemo(() => ({
     total: filtered.length,
@@ -276,19 +270,8 @@ export default function Kol() {
 
       {tab === 'kol' ? (
         <>
-          <div className="mb-2 font-semibold text-slate-800">品牌红人合作管理</div>
-          <div className="mb-4 text-sm text-slate-400">按品牌和产品分类</div>
-
-          <div className="mb-4 flex flex-wrap gap-3">
-            <button onClick={() => setBrandFilter('all')} className={`rounded-2xl border px-5 py-3 text-left ${brandFilter === 'all' ? 'border-brand-500 ring-1 ring-brand-500' : 'border-slate-200'}`}>
-              <span className="flex items-center gap-2 font-semibold text-slate-800"><Globe size={16} /> 全部品牌 <Badge>{kols.length}</Badge></span>
-            </button>
-            {brands.map((b) => (
-              <button key={b.id} onClick={() => setBrandFilter(b.id)} className={`rounded-2xl border px-5 py-3 text-left ${brandFilter === b.id ? 'border-brand-500 ring-1 ring-brand-500' : 'border-slate-200'}`}>
-                <span className="flex items-center gap-2 font-semibold text-slate-800"><Globe size={16} /> {b.name} <Badge>{kols.filter((k) => k.brand_id === b.id).length}</Badge></span>
-              </button>
-            ))}
-          </div>
+          <div className="mb-2 font-semibold text-slate-800">红人合作管理</div>
+          <div className="mb-4 text-sm text-slate-400">按产品分类</div>
 
           <div className="mb-6 flex flex-wrap gap-2">
             <FilterChip active={product === 'all'} onClick={() => setProduct('all')}>全部产品</FilterChip>
@@ -540,10 +523,11 @@ export default function Kol() {
               </table>}
             </Card>}
 
-            {associationDashboardScope !== 'relationships' && <Card className="overflow-x-auto p-0">
+            {associationDashboardScope !== 'relationships' && <Card className="max-w-full overflow-hidden p-0">
               <div className="border-b border-slate-100 px-5 py-4"><div className="font-semibold text-slate-800">{associationActivityScope === 'exhibitions' ? '竞品参展与展会决策看板' : '论坛、峰会、标准会议与展会活动'}</div><div className="mt-1 text-xs text-slate-400">{associationActivityScope === 'exhibitions' ? '日期、地点与规模来自官方公开信息；行业影响力和 WONLY 适配度为系统判断。未公开的费用、报名截止与联系人不推测。' : '按时间倒序；角色区分主办、演讲、赞助、参展、董事会和标准工作组。'}</div></div>
+              <div className="max-h-[70vh] max-w-full overflow-auto overscroll-contain">
               {filteredAssociationEvents.length === 0 ? <EmptyState icon={<CalendarDays size={28} />} title={associationActivityScope === 'exhibitions' ? '本轮没有匹配的展会记录' : '本轮没有匹配的论坛活动'} hint="可调整类目、地区、行业影响力、适配度、参与性质或竞品筛选" /> : <table className={`w-full text-sm ${associationActivityScope === 'exhibitions' ? 'min-w-[1900px]' : 'min-w-[1250px]'}`}>
-                <thead className="border-b border-slate-100 text-left text-xs text-slate-400"><tr><th className="px-5 py-3">日期 / {associationActivityScope === 'exhibitions' ? '展会' : '活动'}</th>{associationActivityScope === 'exhibitions' && <><th className="px-5 py-3">地点</th><th className="px-5 py-3">行业影响力</th></>}<th className="px-5 py-3">竞品 / 协会</th><th className="px-5 py-3">{associationActivityScope === 'exhibitions' ? '参与性质' : '活动类型与角色'}</th><th className="px-5 py-3">{associationActivityScope === 'exhibitions' ? '受众 / WONLY 机会' : '参与内容'}</th><th className="px-5 py-3">{associationActivityScope === 'exhibitions' ? '费用 / 报名' : '同协会活动频率'}</th></tr></thead>
+                <thead className="sticky top-0 z-10 border-b border-slate-100 bg-white text-left text-xs text-slate-400"><tr><th className="px-5 py-3">日期 / {associationActivityScope === 'exhibitions' ? '展会' : '活动'}</th>{associationActivityScope === 'exhibitions' && <><th className="px-5 py-3">地点</th><th className="px-5 py-3">行业影响力</th></>}<th className="px-5 py-3">竞品 / 协会</th><th className="px-5 py-3">{associationActivityScope === 'exhibitions' ? '参与性质' : '活动类型与角色'}</th><th className="px-5 py-3">{associationActivityScope === 'exhibitions' ? '受众 / WONLY 机会' : '参与内容'}</th><th className="px-5 py-3">{associationActivityScope === 'exhibitions' ? '费用 / 报名' : '同协会活动频率'}</th></tr></thead>
                 <tbody>{filteredAssociationEvents.map((item) => <tr key={item.id} className="border-b border-slate-50 align-top hover:bg-slate-50">
                   <td className="min-w-72 px-5 py-4"><a href={item.sourceUrl} target="_blank" rel="noreferrer" className="inline-flex items-start gap-1 font-semibold text-brand-600 hover:underline">{associationActivityScope === 'exhibitions' ? item.exhibition : item.eventName}<ExternalLink size={13} className="mt-0.5 shrink-0" /></a><div className="mt-1 text-xs text-slate-500">{associationActivityScope === 'exhibitions' && item.eventDateEnd !== item.eventDate ? `${item.eventDate} 至 ${item.eventDateEnd}` : item.eventDate}</div>{associationActivityScope === 'exhibitions' && <div className="mt-2 text-xs font-medium text-slate-700">{item.venueDetail}</div>}</td>
                   {associationActivityScope === 'exhibitions' && <>
@@ -556,6 +540,7 @@ export default function Kol() {
                   <td className="min-w-48 px-5 py-4 text-xs leading-5 text-slate-500">{associationActivityScope === 'exhibitions' ? <><div><span className="font-medium text-slate-700">预计费用：</span>{item.estimatedCost}</div><div className="mt-1"><span className="font-medium text-slate-700">报名截止：</span>{item.registrationDeadline}</div><div className="mt-1"><span className="font-medium text-slate-700">竞品样本频率：</span>{associationEventFrequency.get(`${item.competitor}::${item.association}`)} 场</div><div className="mt-1 text-slate-400">实际报价 / 联系人：未记录</div></> : <span className="font-semibold text-slate-700">{associationEventFrequency.get(`${item.competitor}::${item.association}`)} 场</span>}</td>
                 </tr>)}</tbody>
               </table>}
+              </div>
             </Card>}
           </> : mediaView === 'coverage' ? <>
             <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
