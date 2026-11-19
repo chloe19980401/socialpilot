@@ -139,7 +139,7 @@ export default function Kol() {
       ) : (
         <>
           <div className="mb-2 font-semibold text-slate-800">全球新闻、杂志与行业媒体资源</div>
-          <div className="mb-4 text-sm text-slate-400">首批官网核验清单 · 投稿前请再次确认最新编辑政策与商业条件</div>
+          <div className="mb-4 text-sm text-slate-400">官网公开资料核验清单 · 未公开的信息明确标注，不推测邮箱或覆盖规模</div>
 
           <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
             <StatCard icon={<Newspaper size={20} />} value={MEDIA_OUTLETS.length} label="媒体总数" />
@@ -194,7 +194,7 @@ export default function Kol() {
                     </td>
                     <td className="min-w-72 px-5 py-4 text-xs leading-5 text-slate-500">{item.opportunity}</td>
                     <td className="min-w-32 px-5 py-4">
-                      <Badge color={item.status === 'verified' ? 'green' : 'orange'}>{item.status === 'verified' ? '官网已核验' : '投稿前复核'}</Badge>
+                      <Badge color={item.status === 'verified' ? 'green' : item.status === 'review' ? 'orange' : 'slate'}>{item.status === 'verified' ? '官网已核验' : item.status === 'review' ? '投稿前复核' : '待补全'}</Badge>
                       <a href={item.sourceUrl} target="_blank" rel="noreferrer" className="mt-2 block text-xs text-brand-600 hover:underline">来源</a>
                       <div className="mt-1 text-xs text-slate-400">{item.verifiedAt}</div>
                     </td>
