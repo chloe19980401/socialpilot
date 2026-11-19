@@ -38,13 +38,32 @@ Deno.serve(async (req) => {
   const body = await req.json().catch(() => ({}))
   const action = body.action || 'status'
   const db = admin()
-  const { data: connection } = await db.from('oauth_sessions').select('*').order('created_at', { ascending: false }).limit(1).maybeSingle()
+  const { data: connection } = await db.from('oauth_sessions')
+    .select('*')
+    .ilike('scope', '%analytics.readonly%')
+    .ilike('scope', '%webmasters.readonly%')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
 
-  if (action === 'status') return json({
-    connected: !!connection,
-    google_email: connection?.google_email || null,
-    connected_at: connection?.created_at || null,
-  })
+  if (action === 'status') {
+    if (!connection) return json({ connected: false })
+    if (!clientId() || !clientSecret()) return json({ connected: false, reconnect_required: true, error: 'Google OAuth 客户端未配置' })
+    try {
+      await accessToken(connection.refresh_token)
+      return json({
+        connected: true,
+        google_email: connection.user_email || null,
+        connected_at: connection.created_at || null,
+      })
+    } catch (e) {
+      return json({
+        connected: false,
+        reconnect_required: true,
+        error: e instanceof Error ? e.message : String(e),
+      })
+    }
+  }
   if (!connection) return json({ error: '尚未连接 Google' }, 409)
   if (!clientId() || !clientSecret()) return json({ error: 'Google OAuth 客户端未配置' }, 503)
 

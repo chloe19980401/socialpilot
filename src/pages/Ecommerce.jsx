@@ -46,7 +46,14 @@ export default function Ecommerce() {
 
   async function googleCall(action, extra = {}) {
     const { data, error } = await supabase.functions.invoke('google-web-data', { body: { action, ...extra } })
-    if (error) throw error
+    if (error) {
+      let detail = error.message
+      try {
+        const payload = await error.context?.json()
+        if (payload?.error) detail = payload.error
+      } catch { /* keep the transport error */ }
+      throw new Error(detail)
+    }
     if (data?.error) throw new Error(data.error)
     return data
   }
@@ -56,6 +63,7 @@ export default function Ecommerce() {
     try {
       const status = await googleCall('status')
       setGoogleStatus(status)
+      if (status.reconnect_required) setGoogleError(`Google 授权已失效，请重新连接。${status.error ? `（${status.error}）` : ''}`)
       if (status.connected && googleConfig.ga_property_id && googleConfig.gsc_site_url) setGoogleReport(await googleCall('report', { days, ...googleConfig }))
       else if (status.connected && profile?.role === 'admin') setGoogleOptions(await googleCall('discover'))
     } catch (e) {
