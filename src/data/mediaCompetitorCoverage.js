@@ -251,6 +251,16 @@ export const MEDIA_COMPETITOR_COVERAGE = [
 ]
 
 export const COMPETITOR_PROFILES = [
+  { name: 'ASSA ABLOY', categories: ['智能锁', '门', '安防'], market: 'B2B' },
+  { name: 'dormakaba', categories: ['智能锁', '门', '安防'], market: 'B2B' },
+  { name: 'Allegion', categories: ['智能锁', '门', '安防'], market: 'B2B' },
+  { name: 'SALTO Systems', categories: ['智能锁', '门', '安防'], market: 'B2B' },
+  { name: 'HID', categories: ['智能锁', '安防'], market: 'B2B' },
+  { name: 'Suprema', categories: ['智能锁', '安防'], market: 'B2B' },
+  { name: 'Axis Communications', categories: ['安防'], market: 'B2B' },
+  { name: 'Genetec', categories: ['安防'], market: 'B2B' },
+  { name: 'Gallagher Security', categories: ['智能锁', '安防'], market: 'B2B' },
+  { name: 'GEZE', categories: ['门', '安防'], market: 'B2B' },
   { name: 'Wyze', categories: ['智能家居', '安防'], market: 'B2C' },
   { name: 'August Home', categories: ['智能锁', '智能家居'], market: 'B2C' },
   { name: 'Schlage', categories: ['智能锁', '安防'], market: 'B2B+B2C' },
