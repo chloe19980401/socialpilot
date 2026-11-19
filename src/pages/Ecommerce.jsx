@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ShoppingCart, RefreshCw, Pencil, Plus, Link2, Settings2, Users, Eye, MousePointerClick, Search, Activity } from 'lucide-react'
+import { ShoppingCart, RefreshCw, Pencil, Plus, Link2, Settings2, Users, Eye, MousePointerClick, Search, Activity, Sparkles, Target, AlertTriangle } from 'lucide-react'
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
@@ -27,6 +27,9 @@ export default function Ecommerce() {
   const [googleDays, setGoogleDays] = useState(28)
   const [googleLoading, setGoogleLoading] = useState(false)
   const [googleError, setGoogleError] = useState('')
+  const [seoAnalysis, setSeoAnalysis] = useState(null)
+  const [seoLoading, setSeoLoading] = useState(false)
+  const [seoError, setSeoError] = useState('')
 
   async function load() {
     setLoading(true)
@@ -105,6 +108,31 @@ export default function Ecommerce() {
     finally { setGoogleLoading(false) }
   }
 
+  async function analyzeSEO() {
+    if (!googleReport) return
+    setSeoLoading(true); setSeoError('')
+    try {
+      const { data, error } = await supabase.functions.invoke('seo-ai-analysis', {
+        body: {
+          period: { startDate: googleReport.startDate, endDate: googleReport.endDate, days: googleDays },
+          metrics: webKpi,
+          gaDaily: googleReport.gaDaily,
+          searchDaily: googleReport.searchDaily,
+          topQueries: googleReport.topQueries,
+          topPages: googleReport.topPages,
+        },
+      })
+      if (error) {
+        let detail = error.message
+        try { detail = (await error.context?.json())?.error || detail } catch { /* keep transport error */ }
+        throw new Error(detail)
+      }
+      if (data?.error) throw new Error(data.error)
+      setSeoAnalysis({ ...data.analysis, generated_at: data.generated_at })
+    } catch (e) { setSeoError(e.message || 'AI SEO 分析失败') }
+    finally { setSeoLoading(false) }
+  }
+
   const filtered = useMemo(
     () => (brand === 'all' ? orders : orders.filter((o) => o.brand_id === brand)),
     [orders, brand]
@@ -176,6 +204,7 @@ export default function Ecommerce() {
           <div className="flex flex-wrap items-center gap-2">
             {googleStatus?.connected && <span className="text-xs text-green-600">已连接 {googleStatus.google_email}</span>}
             {googleStatus?.connected && googleConfig.ga_property_id && googleConfig.gsc_site_url && <select className="rounded-xl border border-slate-200 px-3 py-2 text-sm" value={googleDays} onChange={(e) => { const value = Number(e.target.value); setGoogleDays(value); loadGoogle(value) }}><option value={28}>近 28 天</option><option value={90}>近 90 天</option><option value={180}>近 180 天</option></select>}
+            {googleReport && <Button variant="primary" onClick={analyzeSEO} disabled={seoLoading}><Sparkles size={15} className={seoLoading ? 'animate-pulse' : ''} />{seoLoading ? '分析中…' : 'AI SEO 分析'}</Button>}
             {googleStatus?.connected && <Button onClick={() => loadGoogle()} disabled={googleLoading}><RefreshCw size={15} className={googleLoading ? 'animate-spin' : ''} />同步</Button>}
             {profile?.role === 'admin' && !googleStatus?.connected && <Button variant="primary" onClick={connectGoogle} disabled={googleLoading}><Link2 size={15} />连接 Google</Button>}
             {profile?.role === 'admin' && googleStatus?.connected && (!googleConfig.ga_property_id || !googleConfig.gsc_site_url) && <Button onClick={discoverGoogle} disabled={googleLoading}><Settings2 size={15} />选择数据源</Button>}
@@ -207,6 +236,8 @@ export default function Ecommerce() {
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-1"><TopList title="热门搜索词" rows={googleReport.topQueries} /><TopList title="热门落地页" rows={googleReport.topPages} /></div>
             </div>
             <div className="mt-3 text-right text-xs text-slate-400">数据区间 {googleReport.startDate} 至 {googleReport.endDate} · GA4 与 GSC 数据可能有 1–3 天延迟</div>
+            {seoError && <div className="mt-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">{seoError}</div>}
+            {seoAnalysis && <SeoAnalysis analysis={seoAnalysis} />}
           </div>
         ) : null}
       </Card>
@@ -233,6 +264,24 @@ export default function Ecommerce() {
       {!loading && orders.length === 0 && (
         <div className="mt-6 text-center text-sm text-slate-400">暂无订单数据，导入订单或添加营销花费后自动计算</div>
       )}
+    </div>
+  )
+}
+
+function SeoAnalysis({ analysis }) {
+  const score = Math.max(0, Math.min(100, Number(analysis.health_score) || 0))
+  return (
+    <div className="mt-5 rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50/80 to-white p-5">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex items-start gap-3"><div className="rounded-xl bg-indigo-600 p-2 text-white"><Sparkles size={20} /></div><div><div className="font-semibold text-slate-900">AI SEO 智能分析</div><div className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">{analysis.summary}</div></div></div>
+        <div className="text-right"><div className="text-xs text-slate-400">SEO 健康分</div><div className="text-3xl font-bold text-indigo-600">{score}<span className="text-sm font-normal text-slate-400">/100</span></div></div>
+      </div>
+      {!!analysis.highlights?.length && <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">{analysis.highlights.map((item, index) => <div key={index} className="rounded-xl border border-white bg-white/80 p-4"><div className="font-medium text-slate-800">{item.title}</div><div className="mt-1 text-xs font-medium text-indigo-600">{item.evidence}</div><div className="mt-2 text-sm leading-5 text-slate-500">{item.meaning}</div></div>)}</div>}
+      <div className="mt-5 grid gap-4 xl:grid-cols-[1.4fr_1fr]">
+        <div><div className="mb-2 flex items-center gap-2 font-medium text-slate-800"><Target size={17} className="text-indigo-600" />增长机会</div><div className="space-y-2">{(analysis.opportunities || []).map((item, index) => <div key={index} className="rounded-xl border border-slate-100 bg-white p-4"><div className="flex flex-wrap items-center gap-2"><span className={`rounded-full px-2 py-0.5 text-xs ${item.priority === '高' ? 'bg-red-50 text-red-600' : item.priority === '中' ? 'bg-amber-50 text-amber-600' : 'bg-slate-100 text-slate-500'}`}>{item.priority}优先级</span><span className="text-xs text-indigo-600">{item.type}</span><span className="font-medium text-slate-800">{item.title}</span></div><div className="mt-2 text-xs text-slate-400">证据：{item.evidence}</div><div className="mt-2 text-sm text-slate-600">行动：{item.action}</div>{item.expected_impact && <div className="mt-1 text-xs text-green-600">预期：{item.expected_impact}</div>}</div>)}</div></div>
+        <div className="space-y-4">{!!analysis.risks?.length && <div><div className="mb-2 flex items-center gap-2 font-medium text-slate-800"><AlertTriangle size={17} className="text-amber-500" />风险提示</div><div className="space-y-2">{analysis.risks.map((item, index) => <div key={index} className="rounded-xl border border-amber-100 bg-amber-50/60 p-3"><div className="font-medium text-slate-700">{item.title}</div><div className="mt-1 text-xs text-slate-500">{item.evidence}</div><div className="mt-2 text-sm text-slate-600">{item.action}</div></div>)}</div></div>}<div><div className="mb-2 font-medium text-slate-800">下一步执行</div><ol className="space-y-2">{(analysis.next_steps || []).map((item, index) => <li key={index} className="rounded-xl border border-slate-100 bg-white p-3 text-sm"><div className="font-medium text-slate-700">{item.order || index + 1}. {item.action}</div><div className="mt-1 text-xs text-slate-400">负责人：{item.owner} · 验收：{item.success_metric}</div></li>)}</ol></div></div>
+      </div>
+      {analysis.generated_at && <div className="mt-4 text-right text-xs text-slate-400">生成时间 {new Date(analysis.generated_at).toLocaleString('zh-CN')}</div>}
     </div>
   )
 }
