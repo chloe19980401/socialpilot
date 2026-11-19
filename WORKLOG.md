@@ -22,3 +22,4 @@
 2026-11-18 | 项目预算执行周期筛选:在“项目预算执行”卡片标题栏直接新增“全年 / Q1 / Q2 / Q3 / Q4”选择器；切换后每个项目的预算、已录入金额、进度条和使用率按所选周期实时重算，表头同步标明当前周期，预算调整入口保持不变。
 2026-11-18 | 营销费用界面精简:根据用户反馈移除下方独立的“预算明细看板”，保留“项目预算执行”卡片内的全年/Q1—Q4筛选及费用明细录入、筛选和统计区域。
 2026-11-19 | 设计台设计师区分:管理员设计台新增独立“设计师”列和按设计师筛选，发布排期按 `designer_email`、手动需求按 `assignee_email` 归属，明确区分赵琳与戴雨婷；管理员新增或编辑手动需求时必须选择设计师，新增需求默认戴雨婷，避免任务继续落到管理员本人名下。
+2026-11-19 | GA4/GSC 联通:自建站看板加入 Google Analytics 4 与 Search Console 只读 OAuth、GA/GSC 数据源发现与选择、28/90/180 天同步、流量/搜索 KPI、趋势图及热门搜索词/落地页。复核生产项目发现既有 `oauth_sessions`、`ga4-proxy`、`gsc-proxy` 与 OAuth 回调；新实现复用既有会话表但由服务端读取 Token，前端不再直接读取或保存 Google access/refresh token，GA 属性与 GSC 站点仅保存于浏览器本地。`google-web-oauth` 与 `google-web-data` Edge Functions 已部署 ACTIVE；Vite 生产构建、`git diff --check` 及 Edge Function TypeScript 语法解析通过。待前端上线后由管理员完成一次 Google 只读授权并选择 GA4 属性与 GSC 站点，随后做真实数据验收。
