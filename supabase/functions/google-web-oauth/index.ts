@@ -84,18 +84,6 @@ Deno.serve(async (req) => {
   if (!user) return json({ error: '仅管理员可连接 Google 数据' }, 403)
   if (!clientId() || !clientSecret()) return json({ error: '缺少 GOOGLE_WEB_CLIENT_ID / GOOGLE_WEB_CLIENT_SECRET' }, 503)
 
-  // This OAuth client is already registered in Google Cloud with the legacy
-  // production callback. Route authorization through that callback so the
-  // redirect URI exactly matches Google's allowlist; tokens remain server-side.
-  const callbackInit = new URL(`${Deno.env.get('SUPABASE_URL')}/functions/v1/oauth-callback`)
-  callbackInit.searchParams.set('action', 'init')
-  callbackInit.searchParams.set('redirect_to', `${appUrl.replace(/\/$/, '')}/#/trends`)
-  return json({
-    authorization_url: callbackInit.toString(),
-    redirect_uri: `${Deno.env.get('SUPABASE_URL')}/functions/v1/oauth-callback`,
-  })
-
-  /* Kept for migration reference if a dedicated OAuth client is configured.
   const stateValue = await createState(user.id)
   const params = new URLSearchParams({
     client_id: clientId(), redirect_uri: redirectUri, response_type: 'code', access_type: 'offline', prompt: 'consent',
@@ -103,6 +91,5 @@ Deno.serve(async (req) => {
     scope: ['openid', 'email', 'https://www.googleapis.com/auth/analytics.readonly', 'https://www.googleapis.com/auth/webmasters.readonly'].join(' '),
   })
   return json({ authorization_url: `https://accounts.google.com/o/oauth2/v2/auth?${params}`, redirect_uri: redirectUri })
-  */
 })
 
