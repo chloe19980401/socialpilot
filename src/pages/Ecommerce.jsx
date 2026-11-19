@@ -8,6 +8,17 @@ import PageHeader from '../components/ui/PageHeader'
 import { Button, Tabs } from '../components/ui/Common'
 import { money, percent } from '../lib/format'
 
+const WEB_CHART_METRICS = [
+  { key: 'users', label: '活跃用户', lines: [{ dataKey: 'users', name: '活跃用户', color: '#3b6ef6' }] },
+  { key: 'sessions', label: '会话', lines: [{ dataKey: 'sessions', name: '会话', color: '#8b5cf6' }] },
+  { key: 'views', label: '浏览量', lines: [{ dataKey: 'views', name: '浏览量', color: '#0ea5e9' }] },
+  { key: 'newUsers', label: '新用户', lines: [{ dataKey: 'newUsers', name: '新用户', color: '#14b8a6' }] },
+  { key: 'engagement', label: '参与率', axis: 'rate', lines: [{ dataKey: 'engagement', name: '参与率', color: '#f59e0b', suffix: '%' }] },
+  { key: 'clicks', label: '自然点击', lines: [{ dataKey: 'clicks', name: '自然点击', color: '#16a34a' }] },
+  { key: 'impressions', label: '自然曝光', lines: [{ dataKey: 'impressions', name: '自然曝光', color: '#64748b' }] },
+  { key: 'ctrPosition', label: 'CTR / 排名', axis: 'rate', lines: [{ dataKey: 'ctr', name: 'CTR', color: '#ec4899', suffix: '%' }, { dataKey: 'position', name: '平均排名', color: '#f97316' }] },
+]
+
 export default function Ecommerce() {
   const { profile } = useAuth()
   const [brand, setBrand] = useState('all')
@@ -30,6 +41,7 @@ export default function Ecommerce() {
   const [seoAnalysis, setSeoAnalysis] = useState(null)
   const [seoLoading, setSeoLoading] = useState(false)
   const [seoError, setSeoError] = useState('')
+  const [selectedWebMetrics, setSelectedWebMetrics] = useState(['users', 'clicks', 'impressions'])
 
   async function load() {
     setLoading(true)
@@ -174,10 +186,34 @@ export default function Ecommerce() {
 
   const trafficSeries = useMemo(() => {
     const byDate = new Map()
-    ;(googleReport?.gaDaily || []).forEach((row) => byDate.set(row.date, { date: row.date, users: row.activeUsers, sessions: row.sessions, clicks: 0, impressions: 0 }))
-    ;(googleReport?.searchDaily || []).forEach((row) => byDate.set(row.date, { ...(byDate.get(row.date) || { date: row.date, users: 0, sessions: 0 }), clicks: row.clicks, impressions: row.impressions }))
+    ;(googleReport?.gaDaily || []).forEach((row) => byDate.set(row.date, {
+      date: row.date,
+      users: Number(row.activeUsers || 0),
+      sessions: Number(row.sessions || 0),
+      views: Number(row.views || 0),
+      newUsers: Number(row.newUsers || 0),
+      engagement: Number(row.sessions || 0) ? (Number(row.engagedSessions || 0) / Number(row.sessions)) * 100 : 0,
+      clicks: 0,
+      impressions: 0,
+      ctr: 0,
+      position: 0,
+    }))
+    ;(googleReport?.searchDaily || []).forEach((row) => {
+      const current = byDate.get(row.date) || { date: row.date, users: 0, sessions: 0, views: 0, newUsers: 0, engagement: 0 }
+      const clicks = Number(row.clicks || 0)
+      const impressions = Number(row.impressions || 0)
+      byDate.set(row.date, { ...current, clicks, impressions, ctr: impressions ? (clicks / impressions) * 100 : 0, position: Number(row.position || 0) })
+    })
     return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date))
   }, [googleReport])
+
+  const visibleWebMetrics = WEB_CHART_METRICS.filter((metric) => selectedWebMetrics.includes(metric.key))
+  const hasCountMetric = visibleWebMetrics.some((metric) => metric.axis !== 'rate')
+  const hasRateMetric = visibleWebMetrics.some((metric) => metric.axis === 'rate')
+
+  function toggleWebMetric(key) {
+    setSelectedWebMetrics((current) => current.includes(key) ? current.filter((item) => item !== key) : [...current, key])
+  }
 
   return (
     <div>
@@ -222,17 +258,22 @@ export default function Ecommerce() {
         ) : googleLoading && !googleReport ? <div className="px-5 py-12 text-center text-sm text-slate-400">正在读取 Google 数据…</div> : googleReport ? (
           <div className="p-5">
             <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-8">
-              <MiniMetric icon={<Users size={16} />} label="活跃用户" value={webKpi.users.toLocaleString()} />
-              <MiniMetric icon={<Activity size={16} />} label="会话" value={webKpi.sessions.toLocaleString()} />
-              <MiniMetric icon={<Eye size={16} />} label="浏览量" value={webKpi.views.toLocaleString()} />
-              <MiniMetric icon={<Users size={16} />} label="新用户" value={webKpi.newUsers.toLocaleString()} />
-              <MiniMetric icon={<Activity size={16} />} label="参与率" value={percent(webKpi.engagement * 100)} />
-              <MiniMetric icon={<MousePointerClick size={16} />} label="自然点击" value={webKpi.clicks.toLocaleString()} />
-              <MiniMetric icon={<Search size={16} />} label="自然曝光" value={webKpi.impressions.toLocaleString()} />
-              <MiniMetric icon={<Search size={16} />} label="CTR / 排名" value={`${percent(webKpi.ctr * 100)} / ${webKpi.position ? webKpi.position.toFixed(1) : '—'}`} />
+              <MiniMetric icon={<Users size={16} />} label="活跃用户" value={webKpi.users.toLocaleString()} selected={selectedWebMetrics.includes('users')} onClick={() => toggleWebMetric('users')} />
+              <MiniMetric icon={<Activity size={16} />} label="会话" value={webKpi.sessions.toLocaleString()} selected={selectedWebMetrics.includes('sessions')} onClick={() => toggleWebMetric('sessions')} />
+              <MiniMetric icon={<Eye size={16} />} label="浏览量" value={webKpi.views.toLocaleString()} selected={selectedWebMetrics.includes('views')} onClick={() => toggleWebMetric('views')} />
+              <MiniMetric icon={<Users size={16} />} label="新用户" value={webKpi.newUsers.toLocaleString()} selected={selectedWebMetrics.includes('newUsers')} onClick={() => toggleWebMetric('newUsers')} />
+              <MiniMetric icon={<Activity size={16} />} label="参与率" value={percent(webKpi.engagement * 100)} selected={selectedWebMetrics.includes('engagement')} onClick={() => toggleWebMetric('engagement')} />
+              <MiniMetric icon={<MousePointerClick size={16} />} label="自然点击" value={webKpi.clicks.toLocaleString()} selected={selectedWebMetrics.includes('clicks')} onClick={() => toggleWebMetric('clicks')} />
+              <MiniMetric icon={<Search size={16} />} label="自然曝光" value={webKpi.impressions.toLocaleString()} selected={selectedWebMetrics.includes('impressions')} onClick={() => toggleWebMetric('impressions')} />
+              <MiniMetric icon={<Search size={16} />} label="CTR / 排名" value={`${percent(webKpi.ctr * 100)} / ${webKpi.position ? webKpi.position.toFixed(1) : '—'}`} selected={selectedWebMetrics.includes('ctrPosition')} onClick={() => toggleWebMetric('ctrPosition')} />
             </div>
             <div className="mt-5 grid gap-4 xl:grid-cols-[1.6fr_1fr]">
-              <div className="h-72 rounded-xl border border-slate-100 p-3"><ResponsiveContainer width="100%" height="100%"><LineChart data={trafficSeries}><CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" /><XAxis dataKey="date" tickFormatter={(v) => String(v).slice(5).replace('-', '/')} fontSize={11} /><YAxis fontSize={11} /><Tooltip /><Legend /><Line type="monotone" dataKey="users" name="活跃用户" stroke="#3b6ef6" dot={false} /><Line type="monotone" dataKey="clicks" name="自然点击" stroke="#16a34a" dot={false} /></LineChart></ResponsiveContainer></div>
+              <div className="relative h-72 rounded-xl border border-slate-100 p-3">
+                {visibleWebMetrics.length ? <ResponsiveContainer width="100%" height="100%"><LineChart data={trafficSeries}><CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" /><XAxis dataKey="date" tickFormatter={(v) => String(v).slice(5).replace('-', '/')} fontSize={11} />{hasCountMetric && <YAxis yAxisId="count" fontSize={11} />}{hasRateMetric && <YAxis yAxisId="rate" orientation={hasCountMetric ? 'right' : 'left'} fontSize={11} />}
+                  <Tooltip formatter={(value, name) => [`${Number(value).toLocaleString(undefined, { maximumFractionDigits: 1 })}${name === '参与率' || name === 'CTR' ? '%' : ''}`, name]} /><Legend />
+                  {visibleWebMetrics.flatMap((metric) => metric.lines.map((line) => <Line key={line.dataKey} type="monotone" yAxisId={metric.axis === 'rate' ? 'rate' : 'count'} dataKey={line.dataKey} name={line.name} stroke={line.color} strokeWidth={2} dot={false} />))}
+                </LineChart></ResponsiveContainer> : <div className="flex h-full items-center justify-center text-sm text-slate-400">点击上方指标卡选择要显示的曲线</div>}
+              </div>
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-1"><TopList title="热门搜索词" rows={googleReport.topQueries} /><TopList title="热门落地页" rows={googleReport.topPages} /></div>
             </div>
             <div className="mt-3 text-right text-xs text-slate-400">数据区间 {googleReport.startDate} 至 {googleReport.endDate} · GA4 与 GSC 数据可能有 1–3 天延迟</div>
@@ -296,8 +337,8 @@ function KCard({ label, value, hint }) {
   )
 }
 
-function MiniMetric({ icon, label, value }) {
-  return <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-3"><div className="flex items-center gap-1.5 text-xs text-slate-400">{icon}{label}</div><div className="mt-1 text-lg font-bold text-slate-800">{value}</div></div>
+function MiniMetric({ icon, label, value, selected = false, onClick }) {
+  return <button type="button" aria-pressed={selected} onClick={onClick} className={`relative rounded-xl border p-3 text-left transition ${selected ? 'border-blue-400 bg-blue-50/80 shadow-sm ring-1 ring-blue-100' : 'border-slate-100 bg-slate-50/60 hover:border-slate-200 hover:bg-white'}`}><div className={`flex items-center gap-1.5 text-xs ${selected ? 'text-blue-600' : 'text-slate-400'}`}>{icon}{label}</div><div className="mt-1 text-lg font-bold text-slate-800">{value}</div>{selected && <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-blue-500" />}</button>
 }
 
 function TopList({ title, rows = [] }) {

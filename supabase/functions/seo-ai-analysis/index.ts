@@ -28,7 +28,7 @@ Deno.serve(async (req) => {
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405)
   if (!await currentUser(req)) return json({ error: '未登录' }, 401)
 
-  const apiKey = Deno.env.get('OPENROUTER_API_KEY') || ''
+  const apiKey = Deno.env.get('GEMINI_API_KEY') || ''
   if (!apiKey) return json({ error: 'AI 分析服务尚未配置' }, 503)
 
   const body = await req.json().catch(() => ({}))
@@ -55,29 +55,30 @@ Deno.serve(async (req) => {
 highlights 2到4项，opportunities 3到6项，risks 0到4项，next_steps 3到5项。所有 evidence 必须引用输入中的具体数字、关键词或 URL。`
 
   try {
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    const model = Deno.env.get('GEMINI_MODEL') || 'gemini-3.1-flash-lite'
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://socialwonly.foreverdoodle.com',
-        'X-Title': 'WONLY SocialPilot SEO Analysis',
       },
       body: JSON.stringify({
-        model: Deno.env.get('OPENROUTER_MODEL') || 'openai/gpt-4o-mini',
-        temperature: 0.2,
-        response_format: { type: 'json_object' },
-        messages: [
-          { role: 'system', content: system },
-          { role: 'user', content: JSON.stringify(input) },
+        contents: [
+          {
+            role: 'user',
+            parts: [{ text: `${system}\n\n待分析数据：\n${JSON.stringify(input)}` }],
+          },
         ],
+        generationConfig: {
+          temperature: 0.2,
+          responseMimeType: 'application/json',
+        },
       }),
     })
     const result = await response.json().catch(() => ({}))
-    if (!response.ok) return json({ error: result?.error?.message || `AI 服务 HTTP ${response.status}` }, 502)
-    const content = result?.choices?.[0]?.message?.content
+    if (!response.ok) return json({ error: result?.error?.message || `Gemini 服务 HTTP ${response.status}` }, 502)
+    const content = result?.candidates?.[0]?.content?.parts?.map((part: { text?: string }) => part?.text || '').join('')
     if (!content) return json({ error: 'AI 未返回分析结果' }, 502)
-    return json({ analysis: parseJson(content), model: result.model || null, generated_at: new Date().toISOString() })
+    return json({ analysis: parseJson(content), model, generated_at: new Date().toISOString() })
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : String(e) }, 502)
   }
