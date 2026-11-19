@@ -1,0 +1,296 @@
+// 竞品媒体露出证据库。
+// frequency 由前端按「媒体 + 竞品」对本文件中的已核验页面计数得出，
+// 代表本次审计样本，不代表媒体完整历史档案或商业合作次数。
+export const MEDIA_COMPETITOR_COVERAGE = [
+  {
+    id: 'siw-yale-pro-2026', outlet: 'Security Info Watch', competitor: 'Yale Home', publishedAt: '2026-02-05',
+    title: 'Yale and Master Lock Introduce New Pro Smart Locks',
+    url: 'https://www.securityinfowatch.com/access-identity/access-control/door-hardware/product/55355778/fortune-brands-home-security-yale-and-master-lock-introduce-new-pro-smart-locks',
+    evidenceType: '产品新闻', relationship: '品牌产品发布被媒体收录；未见付费或联合制作披露', collaborationConfirmed: false,
+  },
+  {
+    id: 'siw-schlage-ces-2025', outlet: 'Security Info Watch', competitor: 'Schlage', publishedAt: '2025-01-06',
+    title: 'Schlage unveils its first ultra-wideband solution at CES 2025',
+    url: 'https://www.securityinfowatch.com/ces-show/press-release/55252760/schlage-schlage-unveils-its-first-ultra-wideband-solution-at-ces-2025',
+    evidenceType: '新闻稿', relationship: '媒体新闻稿栏目收录；未见付费或联合制作披露', collaborationConfirmed: false,
+  },
+  {
+    id: 'siw-schlage-electronic-2022', outlet: 'Security Info Watch', competitor: 'Schlage', publishedAt: '2022-11-15',
+    title: 'Schlage AD Series, NDE and LE electronic locks',
+    url: 'https://www.securityinfowatch.com/access-identity/access-control/locks/product/21287203/allegion-schlage-ad-series-nde-and-le-electronic-locks',
+    evidenceType: '产品资料', relationship: '产品目录/展会信息收录；未见商业合作披露', collaborationConfirmed: false,
+  },
+  {
+    id: 'siw-yale-assure-2-2022', outlet: 'Security Info Watch', competitor: 'Yale Home', publishedAt: '2022-09-27',
+    title: 'Yale Assure Lock 2',
+    url: 'https://www.securityinfowatch.com/residential-technologies/smart-home/product/21282125/yale-an-assa-abloy-group-company-yale-assure-lock-2',
+    evidenceType: '产品新闻', relationship: '品牌产品信息被媒体收录；未见付费或联合制作披露', collaborationConfirmed: false,
+  },
+  {
+    id: 'siw-yale-pro-sl-2022', outlet: 'Security Info Watch', competitor: 'Yale Home', publishedAt: '2022-03-10',
+    title: 'Yale Pro SL Series (YRD156) Smart Lock',
+    url: 'https://www.securityinfowatch.com/access-identity/access-control/locks/product/21257402/yale-an-assa-abloy-group-company-yale-pro-sl-series-yrd156-smart-lock',
+    evidenceType: '产品资料', relationship: '展会/产品目录收录；未见商业合作披露', collaborationConfirmed: false,
+  },
+  {
+    id: 'siw-yale-storage-2020', outlet: 'Security Info Watch', competitor: 'Yale Home', publishedAt: '2020-12-15',
+    title: 'Yale Smart Delivery Box and Smart Cabinet Lock',
+    url: 'https://www.securityinfowatch.com/residential-technologies/smart-home/product/21205936/yale-an-assa-abloy-group-company-yale-smart-delivery-box-and-smart-cabinet-lock',
+    evidenceType: '产品新闻', relationship: '品牌产品信息被媒体收录；未见付费或联合制作披露', collaborationConfirmed: false,
+  },
+  {
+    id: 'siw-aqara-u200-lite-2025', outlet: 'Security Info Watch', competitor: 'Aqara', publishedAt: '2025-06-17',
+    title: 'Aqara Smart Lock U200 Lite',
+    url: 'https://www.securityinfowatch.com/access-identity/access-control/locks/product/55297862/aqara-aqara-smart-lock-u200-lite',
+    evidenceType: '产品资料', relationship: '产品目录收录；未见商业合作披露', collaborationConfirmed: false,
+  },
+  {
+    id: 'siw-lockly-vision-2023', outlet: 'Security Info Watch', competitor: 'Lockly', publishedAt: '2023-08-04',
+    title: 'Lockly Vision Elite Video Smart Lock',
+    url: 'https://www.securityinfowatch.com/access-identity/access-control/locks/product/53068252/lockly-lockly-vision-elite-video-smart-lock',
+    evidenceType: '产品资料', relationship: '产品目录收录；未见商业合作披露', collaborationConfirmed: false,
+  },
+  {
+    id: 'siw-lockly-ultraloq-ces-2026', outlet: 'Security Info Watch', competitor: 'Lockly', publishedAt: '2026-02-06',
+    title: 'The Front Door Takes Center Stage at CES',
+    url: 'https://www.securityinfowatch.com/ces-show/article/55352179/the-front-door-takes-center-stage-at-ces',
+    evidenceType: '编辑报道', relationship: 'CES 现场综合报道提及；未见付费合作披露', collaborationConfirmed: false,
+  },
+  {
+    id: 'siw-ultraloq-ces-2026', outlet: 'Security Info Watch', competitor: 'Ultraloq', publishedAt: '2026-02-06',
+    title: 'The Front Door Takes Center Stage at CES',
+    url: 'https://www.securityinfowatch.com/ces-show/article/55352179/the-front-door-takes-center-stage-at-ces',
+    evidenceType: '编辑报道', relationship: 'CES 现场综合报道提及；未见付费合作披露', collaborationConfirmed: false,
+  },
+  {
+    id: 'll-yale-touch-2023', outlet: 'Locksmith Ledger', competitor: 'Yale Home', publishedAt: '2023-09-27',
+    title: 'Yale Home Expands Smart Lock Collection with Assure Lock 2 Touch and Plus',
+    url: 'https://www.locksmithledger.com/electronics-access-control/locks-smart/product/53073473/yale-home-yale-home-expands-smart-lock-collection-with-yale-assure-lock-2-touch-and-yale-assure-lock-2-plus',
+    evidenceType: '产品新闻', relationship: '品牌产品信息被行业媒体收录；未见付费披露', collaborationConfirmed: false,
+  },
+  {
+    id: 'll-yale-assure-2023', outlet: 'Locksmith Ledger', competitor: 'Yale Home', publishedAt: '2023-06-22',
+    title: 'Yale Assure',
+    url: 'https://www.locksmithledger.com/electronics-access-control/locks-smart/product/53064140/yale-home-yale-assure',
+    evidenceType: '产品资料', relationship: '产品目录收录；未见商业合作披露', collaborationConfirmed: false,
+  },
+  {
+    id: 'll-yale-isc-2025', outlet: 'Locksmith Ledger', competitor: 'Yale Home', publishedAt: '2025-03-31',
+    title: 'Yale and Master Lock Unveil Latest Professional Products at ISC West 2025',
+    url: 'https://www.locksmithledger.com/locks/press-release/55275284/yale-home-yale-and-master-lock-unveil-latest-professional-products-at-isc-west-2025',
+    evidenceType: '新闻稿', relationship: '媒体新闻稿栏目收录；未见付费或联合制作披露', collaborationConfirmed: false,
+  },
+  {
+    id: 'll-schlage-home-automation-2020', outlet: 'Locksmith Ledger', competitor: 'Schlage', publishedAt: '2020-11-16',
+    title: 'Tech Tips: Home Automation',
+    url: 'https://www.locksmithledger.com/electronics-access-control/article/21204429/tech-tips-home-automation',
+    evidenceType: '编辑采访', relationship: '行业技术文章引用品牌代表观点；未见付费合作披露', collaborationConfirmed: false,
+  },
+  {
+    id: 'll-smart-locks-2018-schlage', outlet: 'Locksmith Ledger', competitor: 'Schlage', publishedAt: '2018-04-02',
+    title: 'Tech Tips: Smart Locks for a Connected World',
+    url: 'https://www.locksmithledger.com/locks/article/12401658/tech-tips-smart-locks-for-a-connected-world',
+    evidenceType: '编辑报道', relationship: '技术选型文章提及；未见付费合作披露', collaborationConfirmed: false,
+  },
+  {
+    id: 'll-smart-locks-2018-kwikset', outlet: 'Locksmith Ledger', competitor: 'Kwikset', publishedAt: '2018-04-02',
+    title: 'Tech Tips: Smart Locks for a Connected World',
+    url: 'https://www.locksmithledger.com/locks/article/12401658/tech-tips-smart-locks-for-a-connected-world',
+    evidenceType: '编辑报道', relationship: '技术选型文章提及；未见付费合作披露', collaborationConfirmed: false,
+  },
+  {
+    id: 'st-schlage-sense-pro-2026', outlet: 'Security Today', competitor: 'Schlage', publishedAt: '2026-07-01',
+    title: 'Schlage Sense Pro Smart Deadbolt',
+    url: 'https://securitytoday.com/directory/2026/07/schlage-sense-pro-smart-deadbolt.aspx',
+    evidenceType: '产品目录', relationship: '媒体产品目录收录；未见商业合作披露', collaborationConfirmed: false,
+  },
+  {
+    id: 'st-schlage-encode-2021', outlet: 'Security Today', competitor: 'Schlage', publishedAt: '2021-03-01',
+    title: 'Schlage Encode Wi-Fi Deadbolt',
+    url: 'https://securitytoday.com/directory/2021/03/schlage-encode-wi-fi-deadbolt.aspx',
+    evidenceType: '产品目录', relationship: '媒体产品目录收录；未见商业合作披露', collaborationConfirmed: false,
+  },
+  {
+    id: 'st-kwikset-916-2014', outlet: 'Security Today', competitor: 'Kwikset', publishedAt: '2014-10-01',
+    title: 'SmartCode 916',
+    url: 'https://securitytoday.com/directory/2014/10/smartcode-916.aspx',
+    evidenceType: '产品目录', relationship: '媒体产品目录收录；未见商业合作披露', collaborationConfirmed: false,
+  },
+  {
+    id: 'dwell-smart-home-2017-august', outlet: 'Dwell', competitor: 'August Home', publishedAt: '2017-03-21',
+    title: '5 Key Elements of Smart Home Functionality',
+    url: 'https://www.dwell.com/article/5-key-elements-of-smart-home-functionality-9a9df3b4',
+    evidenceType: '编辑报道', relationship: '家居科技选型文章提及；未见付费合作披露', collaborationConfirmed: false,
+  },
+  {
+    id: 'dwell-smart-home-2017-yale', outlet: 'Dwell', competitor: 'Yale Home', publishedAt: '2017-03-21',
+    title: '5 Key Elements of Smart Home Functionality',
+    url: 'https://www.dwell.com/article/5-key-elements-of-smart-home-functionality-9a9df3b4',
+    evidenceType: '编辑报道', relationship: '家居科技选型文章提及；未见付费合作披露', collaborationConfirmed: false,
+  },
+  {
+    id: 'dwell-smart-home-2017-kwikset', outlet: 'Dwell', competitor: 'Kwikset', publishedAt: '2017-03-21',
+    title: '5 Key Elements of Smart Home Functionality',
+    url: 'https://www.dwell.com/article/5-key-elements-of-smart-home-functionality-9a9df3b4',
+    evidenceType: '编辑报道', relationship: '家居科技选型文章提及；未见付费合作披露', collaborationConfirmed: false,
+  },
+  {
+    id: 'dwell-smart-home-2017-schlage', outlet: 'Dwell', competitor: 'Schlage', publishedAt: '2017-03-21',
+    title: '5 Key Elements of Smart Home Functionality',
+    url: 'https://www.dwell.com/article/5-key-elements-of-smart-home-functionality-9a9df3b4',
+    evidenceType: '编辑报道', relationship: '家居科技选型文章提及；未见付费合作披露', collaborationConfirmed: false,
+  },
+  {
+    id: 'dwell-shop-ultraloq', outlet: 'Dwell', competitor: 'Ultraloq', publishedAt: null,
+    title: 'Modern Tech: Locks Smart Home',
+    url: 'https://www.dwell.com/shop/tech/smart-home--locks',
+    evidenceType: '商业选品', relationship: '购物/产品聚合页收录；商业合作方式未披露', collaborationConfirmed: false,
+  },
+  {
+    id: 'dwell-shop-level', outlet: 'Dwell', competitor: 'Level Home', publishedAt: null,
+    title: 'Modern Tech: Locks Smart Home',
+    url: 'https://www.dwell.com/shop/tech/smart-home--locks',
+    evidenceType: '商业选品', relationship: '购物/产品聚合页收录；商业合作方式未披露', collaborationConfirmed: false,
+  },
+  {
+    id: 'archiproducts-dierre-brand', outlet: 'Archiproducts', competitor: 'Dierre', publishedAt: null,
+    title: 'Dierre brand and product catalogue',
+    url: 'https://www.archiproducts.com/en/dierre',
+    evidenceType: '商业会员目录', relationship: '品牌拥有长期品牌与产品目录页；Archiproducts 官方说明此类发布属于会员服务，确认平台商业关系，但不代表单篇编辑背书', collaborationConfirmed: true,
+  },
+  {
+    id: 'archiproducts-oikos-brand', outlet: 'Archiproducts', competitor: 'Oikos', publishedAt: null,
+    title: 'Oikos brand and product catalogue',
+    url: 'https://www.archiproducts.com/en/oikos',
+    evidenceType: '商业会员目录', relationship: '品牌拥有长期品牌与产品目录页；官方会员规则确认目录发布属于商业会员服务', collaborationConfirmed: true,
+  },
+  {
+    id: 'archiproducts-oikos-dossier', outlet: 'Archiproducts', competitor: 'Oikos', publishedAt: null,
+    title: 'Oikos branded dossier',
+    url: 'https://www.archiproducts.com/newsletter/dossier/554783',
+    evidenceType: '品牌专题', relationship: '独立品牌专题/线索收集页；结合平台公开会员与营销服务，可确认存在商业平台关系，具体专题计费方式未公开', collaborationConfirmed: true,
+  },
+  {
+    id: 'archiproducts-barausse-brand', outlet: 'Archiproducts', competitor: 'Barausse', publishedAt: null,
+    title: 'Barausse brand and product catalogue',
+    url: 'https://www.archiproducts.com/en/barausse',
+    evidenceType: '商业会员目录', relationship: '品牌拥有长期品牌与产品目录页；官方会员规则确认目录发布属于商业会员服务', collaborationConfirmed: true,
+  },
+  {
+    id: 'archiproducts-garofoli-brand', outlet: 'Archiproducts', competitor: 'Garofoli', publishedAt: null,
+    title: 'Garofoli brand and product catalogue',
+    url: 'https://www.archiproducts.com/en/garofoli',
+    evidenceType: '商业会员目录', relationship: '品牌拥有长期品牌与产品目录页；官方会员规则确认目录发布属于商业会员服务', collaborationConfirmed: true,
+  },
+  {
+    id: 'archiproducts-garofoli-doors', outlet: 'Archiproducts', competitor: 'Garofoli', publishedAt: null,
+    title: 'Garofoli doors catalogue',
+    url: 'https://www.archiproducts.com/en/garofoli/products/categories_doors',
+    evidenceType: '商业会员目录', relationship: '门类产品专题目录；与品牌主页面合计为两个独立核验页面，不等同两次新闻合作', collaborationConfirmed: true,
+  },
+  {
+    id: 'archiproducts-hormann-brand', outlet: 'Archiproducts', competitor: 'Hormann', publishedAt: null,
+    title: 'Hormann Italia brand and product catalogue',
+    url: 'https://www.archiproducts.com/en/hormann-italia',
+    evidenceType: '商业会员目录', relationship: '品牌拥有长期品牌与产品目录页；官方会员规则确认目录发布属于商业会员服务', collaborationConfirmed: true,
+  },
+  {
+    id: 'archiproducts-entry-doors', outlet: 'Archiproducts', competitor: 'Hormann', publishedAt: null,
+    title: 'Entry doors and garage doors category',
+    url: 'https://www.archiproducts.com/en/products/entry-doors-and-garage-doors',
+    evidenceType: '商业会员目录', relationship: '门类聚合页持续展示该品牌产品；属于商业目录露出，不是编辑报道', collaborationConfirmed: true,
+  },
+  {
+    id: 'architonic-hormann-bau-guide', outlet: 'Architonic', competitor: 'Hormann', publishedAt: '2019-01-01',
+    title: 'BAU 2019 Architonic Guide',
+    url: 'https://download.architonic.com/guide/BAU_2019_Architonic_Guide.pdf',
+    evidenceType: '展会指南', relationship: '官方展会指南收录品牌；证明渠道露出，未找到该条目单独付费披露', collaborationConfirmed: false,
+  },
+  {
+    id: 'techhive-aqara-u200-review-2024', outlet: 'TechHive', competitor: 'Aqara', publishedAt: '2024-08-07',
+    title: 'Aqara Smart Lock U200 review: This retrofit lock has a few rough edges',
+    url: 'https://www.techhive.com/article/2420130/aqara-smart-lock-u200-review-this-retrofit-lock-has-a-few-rough-edges.html',
+    evidenceType: '产品实测', relationship: '编辑实际安装测试并列出优缺点；未见赞助或品牌付费披露', collaborationConfirmed: false,
+  },
+  {
+    id: 'techhive-aqara-doorbell-g4-review-2024', outlet: 'TechHive', competitor: 'Aqara', publishedAt: '2024-04-16',
+    title: 'Aqara Smart Video Doorbell G4 review: Truly subscription free',
+    url: 'https://www.techhive.com/article/2318531/aqara-smart-video-doorbell-g4-review-truly-subscription-free.html',
+    evidenceType: '产品实测', relationship: '编辑实测视频门铃并给出评分；未见赞助或付费合作披露', collaborationConfirmed: false,
+  },
+  {
+    id: 'techhive-eufy-smart-lock-review-2021', outlet: 'TechHive', competitor: 'eufy Security', publishedAt: '2021-02-09',
+    title: 'Eufy Security Smart Lock Touch & Wi-Fi review: Second time’s the charm',
+    url: 'https://www.techhive.com/article/579191/eufy-security-smart-lock-touch-wi-fi-review.html',
+    evidenceType: '产品实测', relationship: '编辑实际测试并与 Kwikset、Level 等竞品对比；未见赞助披露', collaborationConfirmed: false,
+  },
+  {
+    id: 'techhive-eufy-garage-cam-review-2023', outlet: 'TechHive', competitor: 'eufy Security', publishedAt: '2023-02-23',
+    title: 'Eufy Garage-Control Cam review: A controller and camera in one',
+    url: 'https://www.techhive.com/article/1468374/eufy-garage-control-cam-review.html',
+    evidenceType: '产品实测', relationship: '安防/智能车库门产品实测；未见赞助或品牌付费披露', collaborationConfirmed: false,
+  },
+  {
+    id: 'techhive-eufy-privacy-report-2022', outlet: 'TechHive', competitor: 'eufy Security', publishedAt: '2022-12-19',
+    title: 'Eufy responds to privacy allegations, admits it must do better',
+    url: 'https://www.techhive.com/article/1441481/eufy-security-issues.html',
+    evidenceType: '编辑报道', relationship: '针对安全与隐私争议的独立报道；不属于品牌商业合作', collaborationConfirmed: false,
+  },
+  {
+    id: 'techhive-switchbot-curtain-review-2021', outlet: 'TechHive', competitor: 'SwitchBot', publishedAt: '2021-03-17',
+    title: 'SwitchBot Curtain review: Transform your dumb drapes into smart curtains',
+    url: 'https://www.techhive.com/article/579276/switchbot-curtain-review.html',
+    evidenceType: '产品实测', relationship: '编辑实际安装测试并列出优缺点；未见赞助披露', collaborationConfirmed: false,
+  },
+  {
+    id: 'techhive-switchbot-hub2-news-2023', outlet: 'TechHive', competitor: 'SwitchBot', publishedAt: '2023-01-05',
+    title: 'SwitchBot debuts Matter-enabled Hub 2 with thermometer at CES',
+    url: 'https://www.techhive.com/article/1448511/switchbot-hub-2-matter-ces.html',
+    evidenceType: '产品新闻', relationship: 'CES 新品编辑报道，并回链该媒体既有实测；未见付费合作披露', collaborationConfirmed: false,
+  },
+]
+
+export const COMPETITOR_PROFILES = [
+  { name: 'Wyze', categories: ['智能家居', '安防'], market: 'B2C' },
+  { name: 'August Home', categories: ['智能锁', '智能家居'], market: 'B2C' },
+  { name: 'Schlage', categories: ['智能锁', '安防'], market: 'B2B+B2C' },
+  { name: 'Yale Home', categories: ['智能锁', '智能家居', '安防'], market: 'B2B+B2C' },
+  { name: 'Kwikset', categories: ['智能锁', '安防'], market: 'B2B+B2C' },
+  { name: 'Ultraloq', categories: ['智能锁', '智能家居'], market: 'B2C' },
+  { name: 'Lockly', categories: ['智能锁', '智能家居'], market: 'B2B+B2C' },
+  { name: 'eufy Security', categories: ['智能锁', '智能家居', '安防'], market: 'B2C', origin: '中国出海' },
+  { name: 'Aqara', categories: ['智能锁', '智能家居'], market: 'B2C', origin: '中国出海' },
+  { name: 'SwitchBot', categories: ['智能锁', '智能家居'], market: 'B2C', origin: '中国出海' },
+  { name: 'Level Home', categories: ['智能锁', '智能家居'], market: 'B2C' },
+  { name: 'Nuki', categories: ['智能锁', '智能家居'], market: 'B2C' },
+  { name: 'Dierre', categories: ['门', '安防'], market: 'B2B+B2C' },
+  { name: 'Oikos', categories: ['门'], market: 'B2B+B2C' },
+  { name: 'Pirnar', categories: ['门'], market: 'B2B+B2C' },
+  { name: 'Barausse', categories: ['门'], market: 'B2B+B2C' },
+  { name: 'Garofoli', categories: ['门'], market: 'B2B+B2C' },
+  { name: 'Hormann', categories: ['门', '安防'], market: 'B2B+B2C' },
+  { name: 'Kaadas', categories: ['智能锁', '安防'], market: 'B2B+B2C', origin: '中国出海' },
+  { name: 'DESMAN', categories: ['智能锁', '安防'], market: 'B2B+B2C', origin: '中国出海' },
+  { name: 'Xiaomi Smart Home', categories: ['智能锁', '智能家居'], market: 'B2C', origin: '中国出海' },
+  { name: 'Tuya Smart', categories: ['智能家居', '安防'], market: 'B2B', origin: '中国出海' },
+  { name: 'MEXIN', categories: ['门', '安防'], market: 'B2B+B2C', origin: '中国出海' },
+  { name: 'Buyang', categories: ['门', '安防'], market: 'B2B+B2C', origin: '中国出海' },
+  { name: 'Panpan Door', categories: ['门', '安防'], market: 'B2B+B2C', origin: '中国出海' },
+]
+
+export const COMPETITOR_NAMES = COMPETITOR_PROFILES.map((item) => item.name)
+export const COMPETITOR_CATEGORIES = ['智能锁', '门', '智能家居', '安防']
+export const AUDIENCE_MARKETS = ['B2B', 'B2C', 'B2B+B2C']
+export const COMPETITOR_ORIGINS = ['中国出海', '海外品牌']
+
+export const COVERAGE_OUTLET_MARKETS = {
+  'Security Info Watch': 'B2B',
+  'Locksmith Ledger': 'B2B',
+  'Security Today': 'B2B',
+  Dwell: 'B2C',
+  Archiproducts: 'B2B+B2C',
+  Architonic: 'B2B',
+  TechHive: 'B2C',
+}
+
+export const COVERAGE_AUDIT_DATE = '2026-11-19'

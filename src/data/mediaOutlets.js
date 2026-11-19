@@ -195,6 +195,7 @@ const DIRECTORY_ROWS = [
   ['TechCrunch', '北美', '美国 / 全球', '英语', '科技数字媒体', '创业、科技、投资', 'https://techcrunch.com/'],
   ['WIRED', '北美', '美国 / 全球', '英语、多语种', '科技杂志与数字媒体', '科技、创新、设计', 'https://www.wired.com/'],
   ['The Verge', '北美', '美国', '英语', '科技数字媒体', '消费科技、智能家居、设计', 'https://www.theverge.com/'],
+  ['TechHive', '北美', '美国 / 全球', '英语', '消费科技数字媒体', '智能锁、智能家居、安防', 'https://www.techhive.com/'],
   ['MIT Technology Review', '北美', '美国 / 全球', '英语、多语种', '科技杂志', '前沿科技、AI、创新', 'https://www.technologyreview.com/'],
   ['IEEE Spectrum', '北美', '美国 / 全球', '英语', '工程科技杂志', '工程、电子、智能系统', 'https://spectrum.ieee.org/'],
   ['Dezeen', '欧洲', '英国 / 全球', '英语', '建筑设计数字媒体', '建筑、室内、产品设计', 'https://www.dezeen.com/'],
@@ -235,12 +236,44 @@ const DIRECTORY_ROWS = [
   ['Locksmith Ledger', '北美', '美国', '英语', '锁具行业杂志', '锁具、门五金、门禁', 'https://www.locksmithledger.com/'],
   ['IFSEC Insider', '欧洲', '英国 / 全球', '英语', '安防行业媒体', '消防、安防、门禁', 'https://www.ifsecglobal.com/'],
   ['Security Middle East Magazine', '中东', '阿联酋 / MENA', '英语', '安防行业杂志', '安防、门禁、地区项目', 'https://www.securitymiddleeastmag.com/'],
+  ['Archiproducts', '欧洲', '意大利 / 全球', '英语、意大利语、多语种', '建筑设计产品平台', '门、智能家居、建筑产品、室内设计', 'https://www.archiproducts.com/'],
+  ['Architonic', '全球', '美国 / 全球', '英语、多语种', '建筑设计产品平台', '门、智能家居、建筑产品、室内设计', 'https://www.architonic.com/'],
 ]
 
 // Only use details published by the outlet itself. If an outlet does not publish
 // a current editor, submission policy or audience figure, keep that field explicit
 // instead of inferring an address or reach number.
 const DIRECTORY_DETAILS = {
+  Archiproducts: {
+    submissionUrl: 'https://business.archiproducts.com/en/',
+    contact: '品牌入驻/营销合作：官方 Business 表单；总部 +39 080 24 60 421；普通联系使用官网 Contact Us 表单',
+    audience: 'B2B+B2C；建筑师、设计师、产品指定者、专业采购及设计消费者。官方披露约 100 万 New Products 用户、邮件营销可触达 50 万+画像联系人',
+    opportunity: '高度匹配门、智能锁和智能家居。其会员明确包含产品目录、编辑覆盖、邮件、广告与线索表单；竞品品牌页应视为商业会员露出，不与免费编辑报道混算',
+    sourceUrl: 'https://business.archiproducts.com/en/',
+    status: 'verified',
+    categories: ['门', '智能家居', '安防'],
+    market: 'B2B+B2C',
+  },
+  Architonic: {
+    submissionUrl: 'https://business.architonic.com/contact',
+    contact: '品牌推广与会员合作：官网 Business Contact 表单；官方提供会员包、多渠道推广、编辑合作与展会机会',
+    audience: 'B2B 为主；全球建筑师、设计师、产品指定者，也覆盖设计爱好者',
+    opportunity: '适合门、智能门和建筑五金进入专业选型渠道；可谈品牌目录、编辑合作和活动曝光，合作形式与费用需逐项确认',
+    sourceUrl: 'https://business.architonic.com/contact',
+    status: 'verified',
+    categories: ['门', '智能家居', '安防'],
+    market: 'B2B',
+  },
+  TechHive: {
+    submissionUrl: 'https://www.techhive.com/about/about.html',
+    contact: '消费科技编辑媒体；官网作者页和文章署名可定位智能家居评测编辑，投递前需再核当前联系方式',
+    audience: 'B2C 为主；智能家居、智能锁、视频门铃与家庭安防消费者',
+    opportunity: '由 Aqara、eufy、SwitchBot 等中国出海品牌的多次实测反向发现；适合样机评测与智能家居选题，但不应把编辑测评默认为付费合作',
+    sourceUrl: 'https://www.techhive.com/article/2420130/aqara-smart-lock-u200-review-this-retrofit-lock-has-a-few-rough-edges.html',
+    status: 'review',
+    categories: ['智能锁', '智能家居', '安防'],
+    market: 'B2C',
+  },
   'Wallpaper*': {
     submissionUrl: 'https://www.wallpaper.com/contact-us-ID',
     contact: '广告与品牌合作：advertising@wallpaper.com；contact@wallpaper.com 仅处理读者反馈，不接收编辑投稿或新闻稿',
@@ -396,6 +429,8 @@ const DIRECTORY_MEDIA_OUTLETS = DIRECTORY_ROWS.map(([name, region, country, lang
     opportunity: '已纳入全球媒体目录；尚需结合 WONLY 选题与当地市场核验投稿、PR 或广告合作路径',
     sourceUrl: website,
     status: 'directory',
+    categories: focusText.includes('智能家居') ? ['智能家居'] : focusText.includes('安防') || focusText.includes('门禁') ? ['安防'] : focusText.includes('门') ? ['门'] : [],
+    market: type.includes('B2B') || type.includes('行业') || type.includes('专业') ? 'B2B' : 'B2B+B2C',
     verifiedAt: '2026-11-19',
     ...details,
   }

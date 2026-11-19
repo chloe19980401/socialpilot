@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Star, Users, Globe, Plus, CheckCircle2, Clock, Gift, Newspaper, Search, ExternalLink, ShieldCheck, Languages } from 'lucide-react'
+import { Star, Users, Globe, Plus, CheckCircle2, Clock, Gift, Newspaper, Search, ExternalLink, ShieldCheck, Languages, BarChart3, FileSearch } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { Card, StatCard } from '../components/ui/Card'
 import PageHeader from '../components/ui/PageHeader'
 import { Button, Badge, EmptyState } from '../components/ui/Common'
 import { MEDIA_OUTLETS } from '../data/mediaOutlets'
+import { AUDIENCE_MARKETS, COMPETITOR_CATEGORIES, COMPETITOR_NAMES, COMPETITOR_ORIGINS, COMPETITOR_PROFILES, COVERAGE_AUDIT_DATE, COVERAGE_OUTLET_MARKETS, MEDIA_COMPETITOR_COVERAGE } from '../data/mediaCompetitorCoverage'
 
 export default function Kol() {
   const [tab, setTab] = useState('kol')
@@ -16,6 +17,11 @@ export default function Kol() {
   const [mediaSearch, setMediaSearch] = useState('')
   const [mediaRegion, setMediaRegion] = useState('all')
   const [mediaFocus, setMediaFocus] = useState('all')
+  const [mediaView, setMediaView] = useState('directory')
+  const [competitorFilter, setCompetitorFilter] = useState('all')
+  const [categoryFilter, setCategoryFilter] = useState('all')
+  const [marketFilter, setMarketFilter] = useState('all')
+  const [originFilter, setOriginFilter] = useState('all')
 
   async function load() {
     setLoading(true)
@@ -54,9 +60,36 @@ export default function Kol() {
       const haystack = [item.name, item.country, item.type, item.contact, item.audience, item.opportunity, ...item.languages, ...item.focus].join(' ').toLowerCase()
       return (!query || haystack.includes(query)) &&
         (mediaRegion === 'all' || item.region === mediaRegion) &&
-        (mediaFocus === 'all' || item.focus.includes(mediaFocus))
+        (mediaFocus === 'all' || item.focus.includes(mediaFocus)) &&
+        (categoryFilter === 'all' || getMediaCategories(item).includes(categoryFilter)) &&
+        (marketFilter === 'all' || getMediaMarket(item) === marketFilter)
     })
-  }, [mediaFocus, mediaRegion, mediaSearch])
+  }, [categoryFilter, marketFilter, mediaFocus, mediaRegion, mediaSearch])
+  const coverageFrequency = useMemo(() => {
+    const counts = new Map()
+    MEDIA_COMPETITOR_COVERAGE.forEach((item) => {
+      const key = `${item.outlet}::${item.competitor}`
+      counts.set(key, (counts.get(key) || 0) + 1)
+    })
+    return counts
+  }, [])
+  const commercialFrequency = useMemo(() => {
+    const counts = new Map()
+    MEDIA_COMPETITOR_COVERAGE.filter((item) => item.collaborationConfirmed).forEach((item) => {
+      const key = `${item.outlet}::${item.competitor}`
+      counts.set(key, (counts.get(key) || 0) + 1)
+    })
+    return counts
+  }, [])
+  const competitorProfileMap = useMemo(() => new Map(COMPETITOR_PROFILES.map((item) => [item.name, item])), [])
+  const filteredCoverage = useMemo(() => MEDIA_COMPETITOR_COVERAGE
+    .filter((item) => competitorFilter === 'all' || item.competitor === competitorFilter)
+    .filter((item) => categoryFilter === 'all' || competitorProfileMap.get(item.competitor)?.categories.includes(categoryFilter))
+    .filter((item) => marketFilter === 'all' || COVERAGE_OUTLET_MARKETS[item.outlet] === marketFilter)
+    .filter((item) => originFilter === 'all' || getCompetitorOrigin(competitorProfileMap.get(item.competitor)) === originFilter)
+    .sort((a, b) => (b.publishedAt || '').localeCompare(a.publishedAt || '')), [categoryFilter, competitorFilter, competitorProfileMap, marketFilter, originFilter])
+  const coveredCompetitors = useMemo(() => new Set(MEDIA_COMPETITOR_COVERAGE.map((item) => item.competitor)), [])
+  const coveredOutlets = useMemo(() => new Set(MEDIA_COMPETITOR_COVERAGE.map((item) => item.outlet)), [])
 
   return (
     <div>
@@ -141,6 +174,17 @@ export default function Kol() {
           <div className="mb-2 font-semibold text-slate-800">全球新闻、杂志与行业媒体资源</div>
           <div className="mb-4 text-sm text-slate-400">官网公开资料核验清单 · 未公开的信息明确标注，不推测邮箱或覆盖规模</div>
 
+          <div className="mb-4 inline-flex rounded-xl bg-slate-100 p-1">
+            <button onClick={() => setMediaView('directory')} className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium ${mediaView === 'directory' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>
+              <Newspaper size={16} /> 媒体目录
+            </button>
+            <button onClick={() => setMediaView('coverage')} className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium ${mediaView === 'coverage' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>
+              <BarChart3 size={16} /> 竞品露出与频率
+            </button>
+          </div>
+
+          {mediaView === 'directory' ? <>
+
           <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
             <StatCard icon={<Newspaper size={20} />} value={MEDIA_OUTLETS.length} label="媒体总数" />
             <StatCard icon={<Globe size={20} />} value={mediaRegions.length} label="覆盖区域" />
@@ -149,7 +193,7 @@ export default function Kol() {
           </div>
 
           <Card className="mb-4">
-            <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px_220px]">
+            <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px_180px_180px_180px]">
               <label className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-500">
                 <Search size={16} />
                 <input value={mediaSearch} onChange={(event) => setMediaSearch(event.target.value)} className="min-w-0 flex-1 bg-transparent outline-none" placeholder="搜索媒体、国家、领域、联系人" />
@@ -161,6 +205,14 @@ export default function Kol() {
               <select value={mediaFocus} onChange={(event) => setMediaFocus(event.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600">
                 <option value="all">全部方向</option>
                 {mediaFocuses.map((focus) => <option key={focus} value={focus}>{focus}</option>)}
+              </select>
+              <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600">
+                <option value="all">全部类目</option>
+                {COMPETITOR_CATEGORIES.map((category) => <option key={category} value={category}>{category}</option>)}
+              </select>
+              <select value={marketFilter} onChange={(event) => setMarketFilter(event.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600">
+                <option value="all">B2B / B2C 全部</option>
+                {AUDIENCE_MARKETS.map((market) => <option key={market} value={market}>{market}</option>)}
               </select>
             </div>
           </Card>
@@ -183,6 +235,7 @@ export default function Kol() {
                       <a href={item.website} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-semibold text-brand-600 hover:underline">{item.name}<ExternalLink size={13} /></a>
                       <div className="mt-1 text-xs text-slate-500">{item.country} · {item.type}</div>
                       <div className="mt-2 flex flex-wrap gap-1">{item.languages.map((language) => <Badge key={language}>{language}</Badge>)}</div>
+                      <div className="mt-2 flex flex-wrap gap-1"><Badge color="green">{getMediaMarket(item)}</Badge>{getMediaCategories(item).map((category) => <Badge key={category} color="blue">{category}</Badge>)}</div>
                     </td>
                     <td className="min-w-64 px-5 py-4 text-slate-600">
                       <div className="flex flex-wrap gap-1">{item.focus.map((focus) => <Badge key={focus} color="blue">{focus}</Badge>)}</div>
@@ -204,6 +257,75 @@ export default function Kol() {
             </table>
             )}
           </Card>
+          </> : <>
+            <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
+              <StatCard icon={<FileSearch size={20} />} value={MEDIA_COMPETITOR_COVERAGE.length} label="已核验露出" />
+              <StatCard icon={<Newspaper size={20} />} value={coveredOutlets.size} label="出现媒体" />
+              <StatCard icon={<ShieldCheck size={20} />} value={coveredCompetitors.size} label="出现竞品" />
+              <StatCard icon={<CheckCircle2 size={20} />} value={MEDIA_COMPETITOR_COVERAGE.filter((item) => item.collaborationConfirmed).length} label="商业合作已确认" />
+            </div>
+
+            <Card className="mb-4">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <div className="font-semibold text-slate-800">竞品媒体露出审计</div>
+                  <div className="mt-1 text-sm text-slate-400">频率 = 本次已核验页面数，不等同媒体完整历史或付费合作次数 · 核验日期 {COVERAGE_AUDIT_DATE}</div>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                  <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600">
+                    <option value="all">全部类目</option>
+                    {COMPETITOR_CATEGORIES.map((category) => <option key={category} value={category}>{category}</option>)}
+                  </select>
+                  <select value={marketFilter} onChange={(event) => setMarketFilter(event.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600">
+                    <option value="all">B2B / B2C 全部</option>
+                    {AUDIENCE_MARKETS.map((market) => <option key={market} value={market}>{market}</option>)}
+                  </select>
+                  <select value={originFilter} onChange={(event) => setOriginFilter(event.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600">
+                    <option value="all">全部品牌来源</option>
+                    {COMPETITOR_ORIGINS.map((origin) => <option key={origin} value={origin}>{origin}</option>)}
+                  </select>
+                  <select value={competitorFilter} onChange={(event) => setCompetitorFilter(event.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600">
+                    <option value="all">全部竞品</option>
+                    {COMPETITOR_NAMES.filter((name) => categoryFilter === 'all' || competitorProfileMap.get(name)?.categories.includes(categoryFilter)).filter((name) => originFilter === 'all' || getCompetitorOrigin(competitorProfileMap.get(name)) === originFilter).map((name) => <option key={name} value={name}>{name}{coveredCompetitors.has(name) ? '' : '（本轮未检出）'}</option>)}
+                  </select>
+                </div>
+              </div>
+            </Card>
+
+            <Card className="overflow-x-auto p-0">
+              <table className="w-full min-w-[1100px] text-sm">
+                <thead className="border-b border-slate-100 text-left text-xs text-slate-400">
+                  <tr>
+                    <th className="px-5 py-3">媒体 / 竞品</th><th className="px-5 py-3">新闻或页面</th>
+                    <th className="px-5 py-3">露出性质</th><th className="px-5 py-3">合作判断</th><th className="px-5 py-3">核验频率（商业 / 总露出）</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredCoverage.map((item) => (
+                    <tr key={item.id} className="border-b border-slate-50 align-top hover:bg-slate-50">
+                      <td className="px-5 py-4">
+                        <div className="font-semibold text-slate-700">{item.outlet}</div>
+                        <div className="mt-1 text-slate-500">{item.competitor}</div>
+                        <div className="mt-2 flex flex-wrap gap-1"><Badge color="green">媒体 {COVERAGE_OUTLET_MARKETS[item.outlet] || '待分类'}</Badge><Badge>{competitorProfileMap.get(item.competitor)?.market}</Badge><Badge color={getCompetitorOrigin(competitorProfileMap.get(item.competitor)) === '中国出海' ? 'orange' : 'slate'}>{getCompetitorOrigin(competitorProfileMap.get(item.competitor))}</Badge>{competitorProfileMap.get(item.competitor)?.categories.map((category) => <Badge key={category} color="blue">{category}</Badge>)}</div>
+                      </td>
+                      <td className="max-w-[420px] px-5 py-4">
+                        <a href={item.url} target="_blank" rel="noreferrer" className="inline-flex items-start gap-1 font-medium text-brand-600 hover:underline">
+                          {item.title} <ExternalLink size={13} className="mt-0.5 shrink-0" />
+                        </a>
+                        <div className="mt-1 text-xs text-slate-400">{item.publishedAt || '页面未标发布日期'}</div>
+                      </td>
+                      <td className="px-5 py-4"><Badge color={item.evidenceType === '编辑报道' || item.evidenceType === '编辑采访' ? 'blue' : 'slate'}>{item.evidenceType}</Badge></td>
+                      <td className="max-w-[360px] px-5 py-4">
+                        <Badge color={item.collaborationConfirmed ? 'green' : 'orange'}>{item.collaborationConfirmed ? '商业合作已确认' : '内容露出，未确认商业合作'}</Badge>
+                        <div className="mt-2 text-xs leading-5 text-slate-500">{item.relationship}</div>
+                      </td>
+                      <td className="px-5 py-4 font-semibold text-slate-700">{commercialFrequency.get(`${item.outlet}::${item.competitor}`) || 0} / {coverageFrequency.get(`${item.outlet}::${item.competitor}`)} 条</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </Card>
+          </>}
         </>
       )}
     </div>
@@ -216,4 +338,24 @@ function FilterChip({ active, onClick, children }) {
       {children}
     </button>
   )
+}
+
+function getMediaCategories(item) {
+  if (item.categories?.length) return item.categories
+  const text = [...(item.focus || []), item.type || ''].join(' ')
+  const categories = []
+  if (/智能锁|锁具/.test(text)) categories.push('智能锁')
+  if (/门窗|门业|住宅建造|建筑|室内/.test(text)) categories.push('门')
+  if (/智能家居|消费科技|家居/.test(text)) categories.push('智能家居')
+  if (/安防|门禁|消防|安全/.test(text)) categories.push('安防')
+  return [...new Set(categories)]
+}
+
+function getMediaMarket(item) {
+  if (item.market) return item.market
+  return /B2B|行业|专业|工程|建筑产品/.test(`${item.type} ${(item.focus || []).join(' ')}`) ? 'B2B' : 'B2B+B2C'
+}
+
+function getCompetitorOrigin(profile) {
+  return profile?.origin || '海外品牌'
 }
