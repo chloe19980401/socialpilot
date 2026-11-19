@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Star, Users, Globe, Plus, CheckCircle2, Clock, Gift, Newspaper, Search, ExternalLink, ShieldCheck, Languages, BarChart3, FileSearch, Video } from 'lucide-react'
+import { Star, Users, Globe, Plus, CheckCircle2, Clock, Gift, Newspaper, Search, ExternalLink, ShieldCheck, Languages, BarChart3, FileSearch, Video, Pencil, Upload, FileText, Trash2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { Card, StatCard } from '../components/ui/Card'
 import PageHeader from '../components/ui/PageHeader'
-import { Button, Badge, EmptyState } from '../components/ui/Common'
+import { Button, Badge, EmptyState, Modal, Field, inputClass } from '../components/ui/Common'
 import { MEDIA_OUTLETS } from '../data/mediaOutlets'
 import { AUDIENCE_MARKETS, COMPETITOR_CATEGORIES, COMPETITOR_NAMES, COMPETITOR_ORIGINS, COMPETITOR_PROFILES, COVERAGE_AUDIT_DATE, COVERAGE_OUTLET_MARKETS, MEDIA_COMPETITOR_COVERAGE } from '../data/mediaCompetitorCoverage'
 import { COMPETITOR_INFLUENCER_COVERAGE, INFLUENCER_AUDIT_DATE, INFLUENCER_EVIDENCE_TYPES, INFLUENCER_PLATFORMS } from '../data/competitorInfluencerCoverage'
@@ -25,15 +25,30 @@ export default function Kol() {
   const [originFilter, setOriginFilter] = useState('all')
   const [influencerPlatform, setInfluencerPlatform] = useState('all')
   const [influencerEvidence, setInfluencerEvidence] = useState('all')
+  const [mediaContacts, setMediaContacts] = useState({})
+  const [mediaContactError, setMediaContactError] = useState('')
+  const [mediaContactModal, setMediaContactModal] = useState(false)
+  const [mediaContactOutlet, setMediaContactOutlet] = useState(null)
+  const [mediaContactForm, setMediaContactForm] = useState(emptyMediaContact())
+  const [mediaKitFile, setMediaKitFile] = useState(null)
+  const [removeMediaKit, setRemoveMediaKit] = useState(false)
+  const [savingMediaContact, setSavingMediaContact] = useState(false)
 
   async function load() {
     setLoading(true)
-    const [{ data: k }, { data: b }] = await Promise.all([
+    const [{ data: k }, { data: b }, mediaResult] = await Promise.all([
       supabase.from('kols').select('*'),
       supabase.from('brands').select('*'),
+      supabase.from('media_outlet_contacts').select('*'),
     ])
     setKols(k || [])
     setBrands(b || [])
+    if (mediaResult.error) {
+      setMediaContactError(mediaResult.error.message)
+    } else {
+      setMediaContactError('')
+      setMediaContacts(Object.fromEntries((mediaResult.data || []).map((record) => [record.outlet_id, record])))
+    }
     setLoading(false)
   }
   useEffect(() => { load() }, [])
@@ -60,14 +75,77 @@ export default function Kol() {
   const filteredMedia = useMemo(() => {
     const query = mediaSearch.trim().toLowerCase()
     return MEDIA_OUTLETS.filter((item) => {
-      const haystack = [item.name, item.country, item.type, item.contact, item.audience, item.opportunity, ...item.languages, ...item.focus].join(' ').toLowerCase()
+      const record = mediaContacts[item.id] || {}
+      const haystack = [item.name, item.country, item.type, item.contact, item.audience, item.opportunity, record.actual_contact_name, record.actual_contact_email, record.contact_notes, record.quote_notes, ...item.languages, ...item.focus].join(' ').toLowerCase()
       return (!query || haystack.includes(query)) &&
         (mediaRegion === 'all' || item.region === mediaRegion) &&
         (mediaFocus === 'all' || item.focus.includes(mediaFocus)) &&
         (categoryFilter === 'all' || getMediaCategories(item).includes(categoryFilter)) &&
         (marketFilter === 'all' || getMediaMarket(item) === marketFilter)
     })
-  }, [categoryFilter, marketFilter, mediaFocus, mediaRegion, mediaSearch])
+  }, [categoryFilter, marketFilter, mediaContacts, mediaFocus, mediaRegion, mediaSearch])
+
+  function openMediaContact(item) {
+    const record = mediaContacts[item.id]
+    setMediaContactOutlet(item)
+    setMediaContactForm(record ? { ...emptyMediaContact(), ...record, quoted_price: record.quoted_price ?? '', last_contacted_at: toLocalDateTime(record.last_contacted_at) } : emptyMediaContact())
+    setMediaKitFile(null)
+    setRemoveMediaKit(false)
+    setMediaContactModal(true)
+  }
+
+  async function saveMediaContact(event) {
+    event?.preventDefault()
+    if (!mediaContactOutlet) return
+    if (mediaContactForm.quoted_price !== '' && Number(mediaContactForm.quoted_price) < 0) return alert('报价不能小于 0')
+    if (mediaKitFile && mediaKitFile.size > 20 * 1024 * 1024) return alert('Media Kit 不能超过 20MB')
+    setSavingMediaContact(true)
+    let uploadedPath = null
+    let mediaKit = {}
+    if (mediaKitFile) {
+      const safeName = mediaKitFile.name.replace(/[^a-zA-Z0-9._-]+/g, '_')
+      uploadedPath = `${mediaContactOutlet.id}/${crypto.randomUUID()}-${safeName}`
+      const { error: uploadError } = await supabase.storage.from('media-kits').upload(uploadedPath, mediaKitFile, { cacheControl: '3600', upsert: false })
+      if (uploadError) { setSavingMediaContact(false); return alert(`Media Kit 上传失败：${uploadError.message}`) }
+      mediaKit = { media_kit_path: uploadedPath, media_kit_name: mediaKitFile.name, media_kit_type: mediaKitFile.type || null, media_kit_size: mediaKitFile.size }
+    } else if (removeMediaKit) {
+      mediaKit = { media_kit_path: null, media_kit_name: null, media_kit_type: null, media_kit_size: null }
+    }
+    const { data: authData } = await supabase.auth.getUser()
+    const clean = (value) => String(value || '').trim() || null
+    const payload = {
+      outlet_id: mediaContactOutlet.id,
+      outlet_name: mediaContactOutlet.name,
+      quoted_price: mediaContactForm.quoted_price === '' ? null : Number(mediaContactForm.quoted_price),
+      quoted_currency: mediaContactForm.quoted_currency || 'USD',
+      quote_notes: clean(mediaContactForm.quote_notes),
+      actual_contact_name: clean(mediaContactForm.actual_contact_name),
+      actual_contact_role: clean(mediaContactForm.actual_contact_role),
+      actual_contact_email: clean(mediaContactForm.actual_contact_email),
+      actual_contact_phone: clean(mediaContactForm.actual_contact_phone),
+      contact_status: mediaContactForm.contact_status,
+      last_contacted_at: mediaContactForm.last_contacted_at ? new Date(mediaContactForm.last_contacted_at).toISOString() : null,
+      contact_notes: clean(mediaContactForm.contact_notes),
+      updated_by: authData?.user?.email || null,
+      ...mediaKit,
+    }
+    const { data, error } = await supabase.from('media_outlet_contacts').upsert(payload, { onConflict: 'outlet_id' }).select().single()
+    if (error) {
+      if (uploadedPath) await supabase.storage.from('media-kits').remove([uploadedPath])
+      setSavingMediaContact(false)
+      return alert(`保存失败：${error.message}`)
+    }
+    if (mediaContactForm.media_kit_path && (uploadedPath || removeMediaKit)) await supabase.storage.from('media-kits').remove([mediaContactForm.media_kit_path])
+    setMediaContacts((current) => ({ ...current, [mediaContactOutlet.id]: data }))
+    setSavingMediaContact(false)
+    setMediaContactModal(false)
+  }
+
+  async function openMediaKit(path) {
+    const { data, error } = await supabase.storage.from('media-kits').createSignedUrl(path, 60)
+    if (error) return alert(`打开 Media Kit 失败：${error.message}`)
+    window.open(data.signedUrl, '_blank', 'noopener,noreferrer')
+  }
   const coverageFrequency = useMemo(() => {
     const counts = new Map()
     MEDIA_COMPETITOR_COVERAGE.forEach((item) => {
@@ -241,6 +319,7 @@ export default function Kol() {
           </Card>
 
           <Card className="overflow-x-auto p-0">
+            {mediaContactError && <div className="border-b border-red-100 bg-red-50 px-5 py-3 text-sm text-red-600">联络台账尚未就绪：{mediaContactError}</div>}
             {filteredMedia.length === 0 ? (
               <EmptyState icon={<Newspaper size={28} />} title="没有匹配的媒体" hint="请调整搜索词或筛选条件" />
             ) : (
@@ -248,7 +327,7 @@ export default function Kol() {
               <thead className="border-b border-slate-100 text-left text-xs text-slate-400">
                 <tr>
                   <th className="px-5 py-3">媒体 / 地区</th><th className="px-5 py-3">方向与受众</th>
-                  <th className="px-5 py-3">投稿与联系</th><th className="px-5 py-3">机会判断</th><th className="px-5 py-3">核验</th>
+                  <th className="px-5 py-3">投稿与联系</th><th className="px-5 py-3">实际联络台账</th><th className="px-5 py-3">机会判断</th><th className="px-5 py-3">核验</th>
                 </tr>
               </thead>
               <tbody>
@@ -267,6 +346,17 @@ export default function Kol() {
                     <td className="min-w-72 px-5 py-4 text-slate-600">
                       <div className="break-words text-xs leading-5">{item.contact}</div>
                       <a href={item.submissionUrl} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-brand-600 hover:underline">打开官方投稿/联系入口<ExternalLink size={12} /></a>
+                    </td>
+                    <td className="min-w-72 px-5 py-4 text-xs leading-5 text-slate-500">
+                      {mediaContacts[item.id] ? <>
+                        <div className="flex flex-wrap items-center gap-1"><Badge color={contactStatusMeta(mediaContacts[item.id].contact_status).color}>{contactStatusMeta(mediaContacts[item.id].contact_status).label}</Badge>{mediaContacts[item.id].media_kit_path && <Badge color="blue">Media Kit</Badge>}</div>
+                        <div className="mt-2 font-medium text-slate-700">{mediaContacts[item.id].actual_contact_name || '未填写实际联系人'}{mediaContacts[item.id].actual_contact_role ? ` · ${mediaContacts[item.id].actual_contact_role}` : ''}</div>
+                        {mediaContacts[item.id].actual_contact_email && <div className="break-all">{mediaContacts[item.id].actual_contact_email}</div>}
+                        <div className="mt-1">报价：{formatQuote(mediaContacts[item.id])}</div>
+                        <div>最近联系：{formatContactDate(mediaContacts[item.id].last_contacted_at)}</div>
+                        {mediaContacts[item.id].contact_notes && <div className="mt-1 line-clamp-2 text-slate-400">{mediaContacts[item.id].contact_notes}</div>}
+                      </> : <div className="text-slate-400">尚未记录实际联络</div>}
+                      <button type="button" onClick={() => openMediaContact(item)} className="mt-2 inline-flex items-center gap-1 font-medium text-brand-600 hover:underline"><Pencil size={12} />{mediaContacts[item.id] ? '编辑联络记录' : '记录联系与报价'}</button>
                     </td>
                     <td className="min-w-72 px-5 py-4 text-xs leading-5 text-slate-500">{item.opportunity}</td>
                     <td className="min-w-32 px-5 py-4">
@@ -429,6 +519,42 @@ export default function Kol() {
           </>}
         </>
       )}
+
+      <Modal open={mediaContactModal} onClose={() => !savingMediaContact && setMediaContactModal(false)} title={`${mediaContactOutlet?.name || ''} · 联络记录`} footer={<><Button type="button" onClick={() => setMediaContactModal(false)} disabled={savingMediaContact}>取消</Button><Button type="submit" form="media-contact-form" variant="primary" disabled={savingMediaContact}>{savingMediaContact ? '保存中…' : '保存记录'}</Button></>}>
+        <form id="media-contact-form" onSubmit={saveMediaContact} className="space-y-5">
+          <section>
+            <div className="mb-3 font-medium text-slate-800">报价</div>
+            <div className="grid grid-cols-[120px_1fr] gap-3">
+              <Field label="币种"><select className={inputClass} value={mediaContactForm.quoted_currency} onChange={(e) => setMediaContactForm((v) => ({ ...v, quoted_currency: e.target.value }))}>{['USD','EUR','GBP','CNY','CAD','AUD'].map((currency) => <option key={currency}>{currency}</option>)}</select></Field>
+              <Field label="报价金额"><input className={inputClass} type="number" min="0" step="0.01" value={mediaContactForm.quoted_price} onChange={(e) => setMediaContactForm((v) => ({ ...v, quoted_price: e.target.value }))} placeholder="例如 2500" /></Field>
+            </div>
+            <div className="mt-3"><Field label="报价说明"><textarea className={inputClass} rows="2" value={mediaContactForm.quote_notes} onChange={(e) => setMediaContactForm((v) => ({ ...v, quote_notes: e.target.value }))} placeholder="套餐内容、刊例价、折扣、有效期、是否含税等" /></Field></div>
+          </section>
+          <section>
+            <div className="mb-3 font-medium text-slate-800">实际联系人</div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="姓名"><input className={inputClass} value={mediaContactForm.actual_contact_name} onChange={(e) => setMediaContactForm((v) => ({ ...v, actual_contact_name: e.target.value }))} placeholder="实际对接人" /></Field>
+              <Field label="职位 / 部门"><input className={inputClass} value={mediaContactForm.actual_contact_role} onChange={(e) => setMediaContactForm((v) => ({ ...v, actual_contact_role: e.target.value }))} placeholder="编辑、商务、广告销售等" /></Field>
+              <Field label="邮箱"><input className={inputClass} type="email" value={mediaContactForm.actual_contact_email} onChange={(e) => setMediaContactForm((v) => ({ ...v, actual_contact_email: e.target.value }))} /></Field>
+              <Field label="电话 / WhatsApp"><input className={inputClass} value={mediaContactForm.actual_contact_phone} onChange={(e) => setMediaContactForm((v) => ({ ...v, actual_contact_phone: e.target.value }))} /></Field>
+            </div>
+          </section>
+          <section>
+            <div className="mb-3 font-medium text-slate-800">联系情况</div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="联系状态"><select className={inputClass} value={mediaContactForm.contact_status} onChange={(e) => setMediaContactForm((v) => ({ ...v, contact_status: e.target.value }))}>{Object.entries(CONTACT_STATUSES).map(([value, meta]) => <option key={value} value={value}>{meta.label}</option>)}</select></Field>
+              <Field label="最近联系时间"><input className={inputClass} type="datetime-local" value={mediaContactForm.last_contacted_at} onChange={(e) => setMediaContactForm((v) => ({ ...v, last_contacted_at: e.target.value }))} /></Field>
+            </div>
+            <div className="mt-3"><Field label="联系备注"><textarea className={inputClass} rows="3" value={mediaContactForm.contact_notes} onChange={(e) => setMediaContactForm((v) => ({ ...v, contact_notes: e.target.value }))} placeholder="沟通结果、下一步、回访时间、对方需求等" /></Field></div>
+          </section>
+          <section>
+            <div className="mb-2 font-medium text-slate-800">Media Kit</div>
+            <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm text-slate-500 hover:border-brand-400 hover:text-brand-600"><Upload size={16} />{mediaKitFile ? mediaKitFile.name : '上传 PDF、PPT、Word、Excel、图片或 ZIP（不超过 20MB）'}<input className="hidden" type="file" accept=".pdf,.ppt,.pptx,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp,.zip" onChange={(e) => { setMediaKitFile(e.target.files?.[0] || null); setRemoveMediaKit(false) }} /></label>
+            {mediaContactForm.media_kit_path && !removeMediaKit && <div className="mt-2 flex items-center justify-between rounded-xl bg-blue-50 px-3 py-2 text-sm"><button type="button" className="inline-flex min-w-0 items-center gap-2 text-brand-600 hover:underline" onClick={() => openMediaKit(mediaContactForm.media_kit_path)}><FileText size={15} className="shrink-0" /><span className="truncate">{mediaContactForm.media_kit_name || '查看现有 Media Kit'}</span></button><button type="button" className="ml-3 text-red-500" title="移除附件" onClick={() => { setRemoveMediaKit(true); setMediaKitFile(null) }}><Trash2 size={15} /></button></div>}
+            {removeMediaKit && <div className="mt-2 text-xs text-red-500">保存后将移除现有 Media Kit</div>}
+          </section>
+        </form>
+      </Modal>
     </div>
   )
 }
@@ -464,4 +590,37 @@ function getCompetitorOrigin(profile) {
 function formatMetric(value) {
   if (value === null || value === undefined) return '未公开'
   return new Intl.NumberFormat('zh-CN', { notation: 'compact', maximumFractionDigits: 1 }).format(value)
+}
+
+const CONTACT_STATUSES = {
+  not_contacted: { label: '未联系', color: 'slate' },
+  contacted: { label: '已联系', color: 'blue' },
+  follow_up: { label: '待跟进', color: 'orange' },
+  negotiating: { label: '洽谈中', color: 'blue' },
+  cooperated: { label: '已合作', color: 'green' },
+  declined: { label: '暂不合作', color: 'red' },
+}
+
+function emptyMediaContact() {
+  return { quoted_price: '', quoted_currency: 'USD', quote_notes: '', actual_contact_name: '', actual_contact_role: '', actual_contact_email: '', actual_contact_phone: '', contact_status: 'not_contacted', last_contacted_at: '', contact_notes: '', media_kit_path: null, media_kit_name: null }
+}
+
+function contactStatusMeta(status) {
+  return CONTACT_STATUSES[status] || CONTACT_STATUSES.not_contacted
+}
+
+function toLocalDateTime(value) {
+  if (!value) return ''
+  const date = new Date(value)
+  const offset = date.getTimezoneOffset() * 60000
+  return new Date(date.getTime() - offset).toISOString().slice(0, 16)
+}
+
+function formatContactDate(value) {
+  return value ? new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)) : '未记录'
+}
+
+function formatQuote(record) {
+  if (record.quoted_price === null || record.quoted_price === undefined || record.quoted_price === '') return '未报价'
+  try { return new Intl.NumberFormat('zh-CN', { style: 'currency', currency: record.quoted_currency || 'USD', maximumFractionDigits: 2 }).format(Number(record.quoted_price)) } catch { return `${record.quoted_currency || ''} ${record.quoted_price}`.trim() }
 }
