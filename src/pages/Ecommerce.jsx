@@ -18,6 +18,7 @@ const WEB_CHART_METRICS = [
   { key: 'impressions', label: '自然曝光', lines: [{ dataKey: 'impressions', name: '自然曝光', color: '#64748b' }] },
   { key: 'ctrPosition', label: 'CTR / 排名', axis: 'rate', lines: [{ dataKey: 'ctr', name: 'CTR', color: '#ec4899', suffix: '%' }, { dataKey: 'position', name: '平均排名', color: '#f97316' }] },
 ]
+const WEB_CHART_METRIC_MAP = Object.fromEntries(WEB_CHART_METRICS.map((metric) => [metric.key, metric]))
 
 export default function Ecommerce() {
   const { profile } = useAuth()
@@ -258,14 +259,14 @@ export default function Ecommerce() {
         ) : googleLoading && !googleReport ? <div className="px-5 py-12 text-center text-sm text-slate-400">正在读取 Google 数据…</div> : googleReport ? (
           <div className="p-5">
             <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-8">
-              <MiniMetric icon={<Users size={16} />} label="活跃用户" value={webKpi.users.toLocaleString()} selected={selectedWebMetrics.includes('users')} onClick={() => toggleWebMetric('users')} />
-              <MiniMetric icon={<Activity size={16} />} label="会话" value={webKpi.sessions.toLocaleString()} selected={selectedWebMetrics.includes('sessions')} onClick={() => toggleWebMetric('sessions')} />
-              <MiniMetric icon={<Eye size={16} />} label="浏览量" value={webKpi.views.toLocaleString()} selected={selectedWebMetrics.includes('views')} onClick={() => toggleWebMetric('views')} />
-              <MiniMetric icon={<Users size={16} />} label="新用户" value={webKpi.newUsers.toLocaleString()} selected={selectedWebMetrics.includes('newUsers')} onClick={() => toggleWebMetric('newUsers')} />
-              <MiniMetric icon={<Activity size={16} />} label="参与率" value={percent(webKpi.engagement * 100)} selected={selectedWebMetrics.includes('engagement')} onClick={() => toggleWebMetric('engagement')} />
-              <MiniMetric icon={<MousePointerClick size={16} />} label="自然点击" value={webKpi.clicks.toLocaleString()} selected={selectedWebMetrics.includes('clicks')} onClick={() => toggleWebMetric('clicks')} />
-              <MiniMetric icon={<Search size={16} />} label="自然曝光" value={webKpi.impressions.toLocaleString()} selected={selectedWebMetrics.includes('impressions')} onClick={() => toggleWebMetric('impressions')} />
-              <MiniMetric icon={<Search size={16} />} label="CTR / 排名" value={`${percent(webKpi.ctr * 100)} / ${webKpi.position ? webKpi.position.toFixed(1) : '—'}`} selected={selectedWebMetrics.includes('ctrPosition')} onClick={() => toggleWebMetric('ctrPosition')} />
+              <MiniMetric icon={<Users size={16} />} label="活跃用户" value={webKpi.users.toLocaleString()} colors={WEB_CHART_METRIC_MAP.users.lines.map((line) => line.color)} selected={selectedWebMetrics.includes('users')} onClick={() => toggleWebMetric('users')} />
+              <MiniMetric icon={<Activity size={16} />} label="会话" value={webKpi.sessions.toLocaleString()} colors={WEB_CHART_METRIC_MAP.sessions.lines.map((line) => line.color)} selected={selectedWebMetrics.includes('sessions')} onClick={() => toggleWebMetric('sessions')} />
+              <MiniMetric icon={<Eye size={16} />} label="浏览量" value={webKpi.views.toLocaleString()} colors={WEB_CHART_METRIC_MAP.views.lines.map((line) => line.color)} selected={selectedWebMetrics.includes('views')} onClick={() => toggleWebMetric('views')} />
+              <MiniMetric icon={<Users size={16} />} label="新用户" value={webKpi.newUsers.toLocaleString()} colors={WEB_CHART_METRIC_MAP.newUsers.lines.map((line) => line.color)} selected={selectedWebMetrics.includes('newUsers')} onClick={() => toggleWebMetric('newUsers')} />
+              <MiniMetric icon={<Activity size={16} />} label="参与率" value={percent(webKpi.engagement * 100)} colors={WEB_CHART_METRIC_MAP.engagement.lines.map((line) => line.color)} selected={selectedWebMetrics.includes('engagement')} onClick={() => toggleWebMetric('engagement')} />
+              <MiniMetric icon={<MousePointerClick size={16} />} label="自然点击" value={webKpi.clicks.toLocaleString()} colors={WEB_CHART_METRIC_MAP.clicks.lines.map((line) => line.color)} selected={selectedWebMetrics.includes('clicks')} onClick={() => toggleWebMetric('clicks')} />
+              <MiniMetric icon={<Search size={16} />} label="自然曝光" value={webKpi.impressions.toLocaleString()} colors={WEB_CHART_METRIC_MAP.impressions.lines.map((line) => line.color)} selected={selectedWebMetrics.includes('impressions')} onClick={() => toggleWebMetric('impressions')} />
+              <MiniMetric icon={<Search size={16} />} label="CTR / 排名" value={`${percent(webKpi.ctr * 100)} / ${webKpi.position ? webKpi.position.toFixed(1) : '—'}`} colors={WEB_CHART_METRIC_MAP.ctrPosition.lines.map((line) => line.color)} selected={selectedWebMetrics.includes('ctrPosition')} onClick={() => toggleWebMetric('ctrPosition')} />
             </div>
             <div className="mt-5 grid gap-4 xl:grid-cols-[1.6fr_1fr]">
               <div className="relative h-72 rounded-xl border border-slate-100 p-3">
@@ -337,8 +338,10 @@ function KCard({ label, value, hint }) {
   )
 }
 
-function MiniMetric({ icon, label, value, selected = false, onClick }) {
-  return <button type="button" aria-pressed={selected} onClick={onClick} className={`relative rounded-xl border p-3 text-left transition ${selected ? 'border-blue-400 bg-blue-50/80 shadow-sm ring-1 ring-blue-100' : 'border-slate-100 bg-slate-50/60 hover:border-slate-200 hover:bg-white'}`}><div className={`flex items-center gap-1.5 text-xs ${selected ? 'text-blue-600' : 'text-slate-400'}`}>{icon}{label}</div><div className="mt-1 text-lg font-bold text-slate-800">{value}</div>{selected && <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-blue-500" />}</button>
+function MiniMetric({ icon, label, value, colors = ['#3b6ef6'], selected = false, onClick }) {
+  const primaryColor = colors[0]
+  const selectedStyle = selected ? { borderColor: `${primaryColor}99`, backgroundColor: `${primaryColor}12`, boxShadow: `0 0 0 1px ${primaryColor}22` } : undefined
+  return <button type="button" aria-pressed={selected} onClick={onClick} style={selectedStyle} className={`relative rounded-xl border p-3 text-left transition ${selected ? 'shadow-sm' : 'border-slate-100 bg-slate-50/60 hover:border-slate-200 hover:bg-white'}`}><div className="flex items-center gap-1.5 text-xs" style={{ color: selected ? primaryColor : '#94a3b8' }}>{icon}<span>{label}</span></div><div className="mt-1 text-lg font-bold text-slate-800">{value}</div>{selected && <span className="absolute right-2 top-2 flex gap-1">{colors.map((color) => <span key={color} className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />)}</span>}</button>
 }
 
 function TopList({ title, rows = [] }) {
