@@ -30,6 +30,41 @@ async function googleJson(url: string, token: string, init: RequestInit = {}) {
   return data
 }
 
+function median(values: number[]) {
+  if (!values.length) return 0
+  const sorted = [...values].sort((a, b) => a - b)
+  const middle = Math.floor(sorted.length / 2)
+  return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2
+}
+
+function findTrafficSpikes(rows: any[]) {
+  return rows.map((row, index) => {
+    const previous = rows.slice(Math.max(0, index - 14), index).map((item) => Number(item.activeUsers || 0))
+    const baseline = median(previous)
+    const users = Number(row.activeUsers || 0)
+    return { ...row, baselineUsers: baseline, lift: baseline ? users / baseline : 0 }
+  }).filter((row) => row.baselineUsers >= 3 && row.activeUsers >= Math.max(30, row.baselineUsers * 2.5) && row.activeUsers - row.baselineUsers >= 25)
+    .sort((a, b) => (b.activeUsers - b.baselineUsers) - (a.activeUsers - a.baselineUsers))
+    .slice(0, 3)
+}
+
+function breakdownRows(rows: any[] = [], dimensionCount = 2) {
+  return rows.map((row: any) => {
+    const dimensions = (row.dimensionValues || []).slice(0, dimensionCount).map((value: any) => value?.value || '(not set)')
+    const sessions = Number(row.metricValues?.[1]?.value || 0)
+    const engagedSessions = Number(row.metricValues?.[2]?.value || 0)
+    return {
+      date: dimensions[0]?.length === 8 ? `${dimensions[0].slice(0, 4)}-${dimensions[0].slice(4, 6)}-${dimensions[0].slice(6, 8)}` : dimensions[0],
+      key: dimensions.slice(1).join(' / ') || '(not set)',
+      activeUsers: Number(row.metricValues?.[0]?.value || 0),
+      sessions,
+      engagedSessions,
+      engagementRate: sessions ? engagedSessions / sessions : 0,
+      views: Number(row.metricValues?.[3]?.value || 0),
+    }
+  })
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405)
@@ -111,7 +146,47 @@ Deno.serve(async (req) => {
       }})
       const searchDaily = (gscDaily.rows || []).map((r: any) => ({ date: r.keys?.[0] || '', clicks: Number(r.clicks || 0), impressions: Number(r.impressions || 0), ctr: Number(r.ctr || 0), position: Number(r.position || 0) }))
       const top = (rows: any[] = []) => rows.map((r: any) => ({ key: r.keys?.[0] || '', clicks: Number(r.clicks || 0), impressions: Number(r.impressions || 0), ctr: Number(r.ctr || 0), position: Number(r.position || 0) }))
-      return json({ startDate, endDate, gaDaily, searchDaily, topQueries: top(gscQueries.rows), topPages: top(gscPages.rows) })
+      const spikes = findTrafficSpikes(gaDaily)
+      let anomalyDiagnostics: any[] = []
+      if (spikes.length) {
+        const spikeDates = spikes.map((row) => String(row.date).replaceAll('-', ''))
+        const breakdown = async (dimensions: string[]) => {
+          const report = await googleJson(`https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`, token, {
+            method: 'POST',
+            body: JSON.stringify({
+              dateRanges: [{ startDate, endDate }],
+              dimensions: [{ name: 'date' }, ...dimensions.map((name) => ({ name }))],
+              metrics: ['activeUsers', 'sessions', 'engagedSessions', 'screenPageViews'].map((name) => ({ name })),
+              dimensionFilter: { filter: { fieldName: 'date', inListFilter: { values: spikeDates } } },
+              orderBys: [{ metric: { metricName: 'activeUsers' }, desc: true }],
+              limit: 300,
+            }),
+          })
+          return breakdownRows(report.rows, dimensions.length + 1)
+        }
+        const results = await Promise.allSettled([
+          breakdown(['sessionDefaultChannelGroup', 'sessionSourceMedium']),
+          breakdown(['landingPagePlusQueryString']),
+          breakdown(['country']),
+          breakdown(['deviceCategory']),
+        ])
+        const rows = results.map((result) => result.status === 'fulfilled' ? result.value : [])
+        anomalyDiagnostics = spikes.map((spike) => ({
+          date: spike.date,
+          activeUsers: spike.activeUsers,
+          sessions: spike.sessions,
+          views: spike.views,
+          newUsers: spike.newUsers,
+          engagedSessions: spike.engagedSessions,
+          baselineUsers: Number(spike.baselineUsers.toFixed(1)),
+          lift: Number(spike.lift.toFixed(1)),
+          sources: rows[0].filter((row: any) => row.date === spike.date).slice(0, 12),
+          landingPages: rows[1].filter((row: any) => row.date === spike.date).slice(0, 10),
+          countries: rows[2].filter((row: any) => row.date === spike.date).slice(0, 10),
+          devices: rows[3].filter((row: any) => row.date === spike.date).slice(0, 10),
+        }))
+      }
+      return json({ startDate, endDate, gaDaily, searchDaily, topQueries: top(gscQueries.rows), topPages: top(gscPages.rows), anomalyDiagnostics })
     }
     return json({ error: '未知操作' }, 400)
   } catch (e) {

@@ -18,6 +18,18 @@ function cleanRows(rows: unknown, limit: number) {
   })
 }
 
+function cleanDiagnostics(value: unknown) {
+  if (!Array.isArray(value)) return []
+  const fields = ['date', 'activeUsers', 'sessions', 'views', 'newUsers', 'engagedSessions', 'baselineUsers', 'lift']
+  return value.slice(0, 3).map((item: any) => ({
+    ...Object.fromEntries(fields.map((field) => [field, item?.[field]])),
+    sources: cleanRows(item?.sources, 12),
+    landingPages: cleanRows(item?.landingPages, 10),
+    countries: cleanRows(item?.countries, 10),
+    devices: cleanRows(item?.devices, 10),
+  }))
+}
+
 function parseJson(content: string) {
   const normalized = content.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '')
   return JSON.parse(normalized)
@@ -39,20 +51,24 @@ Deno.serve(async (req) => {
     searchDaily: cleanRows(body.searchDaily, 200),
     topQueries: cleanRows(body.topQueries, 30),
     topPages: cleanRows(body.topPages, 30),
+    anomalyDiagnostics: cleanDiagnostics(body.anomalyDiagnostics),
   }
 
   const system = `你是资深国际站 SEO 与增长分析师。请根据提供的 GA4 和 Google Search Console 数据，输出简体中文、证据驱动、可执行的分析。不得虚构数据，不得把相关性说成因果。数据只有当前周期时，可比较周期前后半段，但必须明确口径。重点识别：流量质量、自然搜索表现、低 CTR 高曝光机会、接近首页的关键词、落地页机会、异常和下一步动作。
+
+对 anomalyDiagnostics 中的异常流量峰值必须单独归因：结合渠道/来源媒介、落地页、国家、设备、会话与参与质量，区分自然搜索、广告、社媒、引荐、直接访问、内部流量和可疑机器人。只有数据能支持时才给出原因；否则明确写“无法确认”并列出验证步骤。confidence 仅能是高、中或低。
 
 必须只返回一个 JSON 对象，结构严格如下：
 {
   "health_score": 0到100的整数,
   "summary": "120字以内的管理层摘要",
+  "anomalies": [{"date":"YYYY-MM-DD", "title":"", "evidence":"", "likely_cause":"", "confidence":"高|中|低", "verification":""}],
   "highlights": [{"title":"", "evidence":"", "meaning":""}],
   "opportunities": [{"priority":"高|中|低", "type":"关键词|落地页|内容|技术|转化", "title":"", "evidence":"", "action":"", "expected_impact":""}],
   "risks": [{"level":"高|中|低", "title":"", "evidence":"", "action":""}],
   "next_steps": [{"order":1, "action":"", "owner":"SEO|内容|网站|投放", "success_metric":""}]
 }
-highlights 2到4项，opportunities 3到6项，risks 0到4项，next_steps 3到5项。所有 evidence 必须引用输入中的具体数字、关键词或 URL。`
+anomalies 对每个输入异常日期各输出1项，无异常时返回空数组。highlights 2到4项，opportunities 3到6项，risks 0到4项，next_steps 3到5项。所有 evidence 必须引用输入中的具体数字、关键词或 URL。`
 
   try {
     const model = Deno.env.get('GEMINI_MODEL') || 'gemini-3.1-flash-lite'
