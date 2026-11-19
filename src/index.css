@@ -50,3 +50,26 @@ button, a, input, select, textarea {
   background: #cbd5e1;
   border-radius: 4px;
 }
+
+/* 展会宽表始终显示可识别的横向滚动轨道，不依赖系统滚动条显示设置。 */
+.exhibition-scroll {
+  scrollbar-width: auto;
+  scrollbar-color: #94a3b8 #e2e8f0;
+}
+
+.exhibition-scroll::-webkit-scrollbar {
+  width: 10px;
+  height: 12px;
+}
+
+.exhibition-scroll::-webkit-scrollbar-track {
+  background: #e2e8f0;
+  border-radius: 9999px;
+}
+
+.exhibition-scroll::-webkit-scrollbar-thumb {
+  min-width: 72px;
+  background: #94a3b8;
+  border: 2px solid #e2e8f0;
+  border-radius: 9999px;
+}

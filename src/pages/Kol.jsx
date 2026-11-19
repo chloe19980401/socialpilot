@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Star, Users, Globe, Plus, CheckCircle2, Clock, Gift, Newspaper, Search, ExternalLink, ShieldCheck, Languages, BarChart3, FileSearch, Video, Pencil, Upload, FileText, Trash2, Building2, Handshake, CalendarDays } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Star, Users, Globe, Plus, CheckCircle2, Clock, Gift, Newspaper, Search, ExternalLink, ShieldCheck, Languages, BarChart3, FileSearch, Video, Pencil, Upload, FileText, Trash2, Building2, Handshake, CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { Card, StatCard } from '../components/ui/Card'
 import PageHeader from '../components/ui/PageHeader'
@@ -46,6 +46,7 @@ export default function Kol() {
   const [mediaKitFile, setMediaKitFile] = useState(null)
   const [removeMediaKit, setRemoveMediaKit] = useState(false)
   const [savingMediaContact, setSavingMediaContact] = useState(false)
+  const exhibitionScrollRef = useRef(null)
 
   async function load() {
     setLoading(true)
@@ -523,9 +524,16 @@ export default function Kol() {
               </table>}
             </Card>}
 
-            {associationDashboardScope !== 'relationships' && <Card className="max-w-full overflow-hidden p-0">
-              <div className="border-b border-slate-100 px-5 py-4"><div className="font-semibold text-slate-800">{associationActivityScope === 'exhibitions' ? '竞品参展与展会决策看板' : '论坛、峰会、标准会议与展会活动'}</div><div className="mt-1 text-xs text-slate-400">{associationActivityScope === 'exhibitions' ? '日期、地点与规模来自官方公开信息；行业影响力和 WONLY 适配度为系统判断。未公开的费用、报名截止与联系人不推测。' : '按时间倒序；角色区分主办、演讲、赞助、参展、董事会和标准工作组。'}</div></div>
-              <div className="max-h-[70vh] max-w-full overflow-auto overscroll-contain">
+            {associationDashboardScope !== 'relationships' && <Card className="w-full min-w-0 max-w-full overflow-hidden p-0">
+              <div className="flex items-center justify-between gap-4 border-b border-slate-100 px-5 py-4">
+                <div><div className="font-semibold text-slate-800">{associationActivityScope === 'exhibitions' ? '竞品参展与展会决策看板' : '论坛、峰会、标准会议与展会活动'}</div><div className="mt-1 text-xs text-slate-400">{associationActivityScope === 'exhibitions' ? '日期、地点与规模来自官方公开信息；行业影响力和 WONLY 适配度为系统判断。未公开的费用、报名截止与联系人不推测。' : '按时间倒序；角色区分主办、演讲、赞助、参展、董事会和标准工作组。'}</div></div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <span className="hidden text-xs text-slate-400 sm:inline">左右查看</span>
+                  <button type="button" aria-label="向左滚动展会表格" onClick={() => exhibitionScrollRef.current?.scrollBy({ left: -640, behavior: 'smooth' })} className="rounded-lg border border-slate-200 bg-white p-2 text-slate-600 hover:border-brand-300 hover:text-brand-600"><ChevronLeft size={18} /></button>
+                  <button type="button" aria-label="向右滚动展会表格" onClick={() => exhibitionScrollRef.current?.scrollBy({ left: 640, behavior: 'smooth' })} className="rounded-lg border border-slate-200 bg-white p-2 text-slate-600 hover:border-brand-300 hover:text-brand-600"><ChevronRight size={18} /></button>
+                </div>
+              </div>
+              <div ref={exhibitionScrollRef} className="exhibition-scroll max-h-[70vh] w-full min-w-0 max-w-full overflow-auto overscroll-contain">
               {filteredAssociationEvents.length === 0 ? <EmptyState icon={<CalendarDays size={28} />} title={associationActivityScope === 'exhibitions' ? '本轮没有匹配的展会记录' : '本轮没有匹配的论坛活动'} hint="可调整类目、地区、行业影响力、适配度、参与性质或竞品筛选" /> : <table className={`w-full text-sm ${associationActivityScope === 'exhibitions' ? 'min-w-[1900px]' : 'min-w-[1250px]'}`}>
                 <thead className="sticky top-0 z-10 border-b border-slate-100 bg-white text-left text-xs text-slate-400"><tr><th className="px-5 py-3">日期 / {associationActivityScope === 'exhibitions' ? '展会' : '活动'}</th>{associationActivityScope === 'exhibitions' && <><th className="px-5 py-3">地点</th><th className="px-5 py-3">行业影响力</th></>}<th className="px-5 py-3">竞品 / 协会</th><th className="px-5 py-3">{associationActivityScope === 'exhibitions' ? '参与性质' : '活动类型与角色'}</th><th className="px-5 py-3">{associationActivityScope === 'exhibitions' ? '受众 / WONLY 机会' : '参与内容'}</th><th className="px-5 py-3">{associationActivityScope === 'exhibitions' ? '费用 / 报名' : '同协会活动频率'}</th></tr></thead>
                 <tbody>{filteredAssociationEvents.map((item) => <tr key={item.id} className="border-b border-slate-50 align-top hover:bg-slate-50">
