@@ -35,6 +35,8 @@ export default function Kol() {
   const [associationEventRole, setAssociationEventRole] = useState('all')
   const [associationActivityScope, setAssociationActivityScope] = useState('exhibitions')
   const [exhibitionRelation, setExhibitionRelation] = useState('all')
+  const [associationDashboardScope, setAssociationDashboardScope] = useState('exhibitions')
+  const [associationOrganizationFilter, setAssociationOrganizationFilter] = useState('all')
   const [mediaContacts, setMediaContacts] = useState({})
   const [mediaContactError, setMediaContactError] = useState('')
   const [mediaContactModal, setMediaContactModal] = useState(false)
@@ -212,19 +214,21 @@ export default function Kol() {
   const influencerCompetitors = useMemo(() => new Set(COMPETITOR_INFLUENCER_COVERAGE.map((item) => item.competitor)), [])
   const filteredAssociationCoverage = useMemo(() => COMPETITOR_ASSOCIATION_COVERAGE
     .filter((item) => competitorFilter === 'all' || item.competitor === competitorFilter)
+    .filter((item) => associationOrganizationFilter === 'all' || item.association === associationOrganizationFilter)
     .filter((item) => categoryFilter === 'all' || competitorProfileMap.get(item.competitor)?.categories.includes(categoryFilter))
     .filter((item) => marketFilter === 'all' || competitorProfileMap.get(item.competitor)?.market === marketFilter)
     .filter((item) => originFilter === 'all' || getCompetitorOrigin(competitorProfileMap.get(item.competitor)) === originFilter)
     .filter((item) => associationRelationshipType === 'all' || item.relationshipType === associationRelationshipType)
-    .sort((a, b) => (b.evidenceDate || '').localeCompare(a.evidenceDate || '')), [associationRelationshipType, categoryFilter, competitorFilter, competitorProfileMap, marketFilter, originFilter])
+    .sort((a, b) => (b.evidenceDate || '').localeCompare(a.evidenceDate || '')), [associationOrganizationFilter, associationRelationshipType, categoryFilter, competitorFilter, competitorProfileMap, marketFilter, originFilter])
   const filteredAssociationEvents = useMemo(() => (associationActivityScope === 'exhibitions' ? COMPETITOR_EXHIBITION_EVENTS : COMPETITOR_ASSOCIATION_EVENTS)
     .filter((item) => competitorFilter === 'all' || item.competitor === competitorFilter)
+    .filter((item) => associationOrganizationFilter === 'all' || item.association === associationOrganizationFilter)
     .filter((item) => categoryFilter === 'all' || competitorProfileMap.get(item.competitor)?.categories.includes(categoryFilter))
     .filter((item) => marketFilter === 'all' || competitorProfileMap.get(item.competitor)?.market === marketFilter)
     .filter((item) => originFilter === 'all' || getCompetitorOrigin(competitorProfileMap.get(item.competitor)) === originFilter)
     .filter((item) => associationEventRole === 'all' || item.role === associationEventRole)
     .filter((item) => associationActivityScope !== 'exhibitions' || exhibitionRelation === 'all' || item.exhibitionRelation === exhibitionRelation)
-    .sort((a, b) => (b.eventDate || '').localeCompare(a.eventDate || '')), [associationActivityScope, associationEventRole, categoryFilter, competitorFilter, competitorProfileMap, exhibitionRelation, marketFilter, originFilter])
+    .sort((a, b) => (b.eventDate || '').localeCompare(a.eventDate || '')), [associationActivityScope, associationEventRole, associationOrganizationFilter, categoryFilter, competitorFilter, competitorProfileMap, exhibitionRelation, marketFilter, originFilter])
   const associationCoverageCompetitors = useMemo(() => new Set([...COMPETITOR_ASSOCIATION_COVERAGE, ...COMPETITOR_ASSOCIATION_EVENTS].map((item) => item.competitor)), [])
   const associationCoverageOrganizations = useMemo(() => new Set([...COMPETITOR_ASSOCIATION_COVERAGE, ...COMPETITOR_ASSOCIATION_EVENTS].map((item) => item.association)), [])
   const associationEventFrequency = useMemo(() => {
@@ -236,6 +240,14 @@ export default function Kol() {
     return counts
   }, [])
   const exhibitionNames = useMemo(() => new Set(COMPETITOR_EXHIBITION_EVENTS.map((item) => item.exhibition)), [])
+  const associationSummaryRecords = useMemo(() => [...COMPETITOR_ASSOCIATION_COVERAGE, ...COMPETITOR_ASSOCIATION_EVENTS]
+    .filter((item) => categoryFilter === 'all' || competitorProfileMap.get(item.competitor)?.categories.includes(categoryFilter))
+    .filter((item) => marketFilter === 'all' || competitorProfileMap.get(item.competitor)?.market === marketFilter)
+    .filter((item) => originFilter === 'all' || getCompetitorOrigin(competitorProfileMap.get(item.competitor)) === originFilter), [categoryFilter, competitorProfileMap, marketFilter, originFilter])
+  const associationCompetitorOptions = useMemo(() => countAssociationValues(associationSummaryRecords
+    .filter((item) => associationOrganizationFilter === 'all' || item.association === associationOrganizationFilter), 'competitor'), [associationOrganizationFilter, associationSummaryRecords])
+  const associationOrganizationOptions = useMemo(() => countAssociationValues(associationSummaryRecords
+    .filter((item) => competitorFilter === 'all' || item.competitor === competitorFilter), 'association'), [associationSummaryRecords, competitorFilter])
 
   return (
     <div>
@@ -460,10 +472,10 @@ export default function Kol() {
             </Card>
           </> : mediaView === 'associationCoverage' ? <>
             <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
-              <StatCard icon={<Handshake size={20} />} value={COMPETITOR_ASSOCIATION_COVERAGE.length} label="协会关系证据" />
-              <StatCard icon={<ShieldCheck size={20} />} value={associationCoverageCompetitors.size} label="已核验竞品" />
-              <StatCard icon={<Building2 size={20} />} value={associationCoverageOrganizations.size} label="涉及协会" />
-              <StatCard icon={<CalendarDays size={20} />} value={exhibitionNames.size} label="已核验展会" />
+              <StatCard icon={<Handshake size={20} />} value={COMPETITOR_ASSOCIATION_COVERAGE.length} label="协会关系证据" active={associationDashboardScope === 'relationships'} onClick={() => { setAssociationDashboardScope('relationships'); setAssociationActivityScope('all') }} />
+              <StatCard icon={<ShieldCheck size={20} />} value={associationCoverageCompetitors.size} label="已核验竞品" active={associationDashboardScope === 'competitors'} onClick={() => setAssociationDashboardScope('competitors')} />
+              <StatCard icon={<Building2 size={20} />} value={associationCoverageOrganizations.size} label="涉及协会" active={associationDashboardScope === 'associations'} onClick={() => setAssociationDashboardScope('associations')} />
+              <StatCard icon={<CalendarDays size={20} />} value={exhibitionNames.size} label="已核验展会" active={associationDashboardScope === 'exhibitions'} onClick={() => { setAssociationDashboardScope('exhibitions'); setAssociationActivityScope('exhibitions') }} />
             </div>
 
             <Card className="mb-4">
@@ -477,18 +489,32 @@ export default function Kol() {
                   <button type="button" onClick={() => setAssociationActivityScope('all')} className={`rounded-xl px-4 py-2 text-sm font-medium ${associationActivityScope === 'all' ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-500'}`}>全部论坛活动</button>
                   {associationActivityScope === 'exhibitions' && <select value={exhibitionRelation} onChange={(event) => setExhibitionRelation(event.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600"><option value="all">全部参展性质</option>{EXHIBITION_RELATION_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}</select>}
                 </div>
-                <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-6">
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-7">
                   <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600"><option value="all">全部类目</option>{COMPETITOR_CATEGORIES.map((category) => <option key={category} value={category}>{category}</option>)}</select>
                   <select value={marketFilter} onChange={(event) => setMarketFilter(event.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600"><option value="all">B2B / B2C 全部</option>{AUDIENCE_MARKETS.map((market) => <option key={market} value={market}>{market}</option>)}</select>
                   <select value={originFilter} onChange={(event) => setOriginFilter(event.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600"><option value="all">全部品牌来源</option>{COMPETITOR_ORIGINS.map((origin) => <option key={origin} value={origin}>{origin}</option>)}</select>
                   <select value={associationRelationshipType} onChange={(event) => setAssociationRelationshipType(event.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600"><option value="all">全部协会关系</option>{ASSOCIATION_RELATIONSHIP_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}</select>
                   <select value={associationEventRole} onChange={(event) => setAssociationEventRole(event.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600"><option value="all">全部活动角色</option>{ASSOCIATION_EVENT_ROLES.map((role) => <option key={role} value={role}>{role}</option>)}</select>
                   <select value={competitorFilter} onChange={(event) => setCompetitorFilter(event.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600"><option value="all">全部竞品</option>{COMPETITOR_NAMES.filter((name) => categoryFilter === 'all' || competitorProfileMap.get(name)?.categories.includes(categoryFilter)).filter((name) => marketFilter === 'all' || competitorProfileMap.get(name)?.market === marketFilter).filter((name) => originFilter === 'all' || getCompetitorOrigin(competitorProfileMap.get(name)) === originFilter).map((name) => <option key={name} value={name}>{name}{associationCoverageCompetitors.has(name) ? '' : '（本轮未检出）'}</option>)}</select>
+                  <select value={associationOrganizationFilter} onChange={(event) => setAssociationOrganizationFilter(event.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600"><option value="all">全部协会 / 主办方</option>{associationOrganizationOptions.map(({ value }) => <option key={value} value={value}>{value}</option>)}</select>
                 </div>
               </div>
             </Card>
 
-            <Card className="mb-4 overflow-x-auto p-0">
+            {(associationDashboardScope === 'competitors' || associationDashboardScope === 'associations') && <Card className="mb-4">
+              <div className="flex items-center justify-between gap-3">
+                <div><div className="font-semibold text-slate-800">{associationDashboardScope === 'competitors' ? '按竞品筛选' : '按协会 / 主办方筛选'}</div><div className="mt-1 text-xs text-slate-400">点击卡片筛选下方协会关系与活动记录；再次点击当前项可取消。</div></div>
+                <button type="button" onClick={() => associationDashboardScope === 'competitors' ? setCompetitorFilter('all') : setAssociationOrganizationFilter('all')} className="shrink-0 text-sm font-medium text-brand-600 hover:underline">清除筛选</button>
+              </div>
+              <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {(associationDashboardScope === 'competitors' ? associationCompetitorOptions : associationOrganizationOptions).map(({ value, count }) => {
+                  const selected = associationDashboardScope === 'competitors' ? competitorFilter === value : associationOrganizationFilter === value
+                  return <button key={value} type="button" onClick={() => associationDashboardScope === 'competitors' ? setCompetitorFilter(selected ? 'all' : value) : setAssociationOrganizationFilter(selected ? 'all' : value)} className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left text-sm transition ${selected ? 'border-brand-500 bg-brand-50 text-brand-700 ring-1 ring-brand-500' : 'border-slate-200 bg-white text-slate-600 hover:border-brand-300'}`}><span className="truncate font-medium">{value}</span><span className={`shrink-0 rounded-full px-2 py-0.5 text-xs ${selected ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-500'}`}>{count}</span></button>
+                })}
+              </div>
+            </Card>}
+
+            {associationDashboardScope !== 'exhibitions' && <Card className="mb-4 overflow-x-auto p-0">
               <div className="border-b border-slate-100 px-5 py-4"><div className="font-semibold text-slate-800">协会关系</div><div className="mt-1 text-xs text-slate-400">“母公司”范围不会被描述成品牌直接入会；认证生态也不会被描述成董事会或正式会员。</div></div>
               {filteredAssociationCoverage.length === 0 ? <EmptyState icon={<Handshake size={28} />} title="本轮没有匹配的协会关系" hint="可调整类目、品牌来源、关系类型或竞品筛选" /> : <table className="w-full min-w-[1180px] text-sm">
                 <thead className="border-b border-slate-100 text-left text-xs text-slate-400"><tr><th className="px-5 py-3">竞品 / 类目</th><th className="px-5 py-3">协会</th><th className="px-5 py-3">关系类型</th><th className="px-5 py-3">官方证据</th><th className="px-5 py-3">活动样本频率</th></tr></thead>
@@ -500,9 +526,9 @@ export default function Kol() {
                   <td className="min-w-32 px-5 py-4 font-semibold text-slate-700">{associationEventFrequency.get(`${item.competitor}::${item.association}`) || 0} 场</td>
                 </tr>)}</tbody>
               </table>}
-            </Card>
+            </Card>}
 
-            <Card className="overflow-x-auto p-0">
+            {associationDashboardScope !== 'relationships' && <Card className="overflow-x-auto p-0">
               <div className="border-b border-slate-100 px-5 py-4"><div className="font-semibold text-slate-800">{associationActivityScope === 'exhibitions' ? '竞品参展记录' : '论坛、峰会、标准会议与展会活动'}</div><div className="mt-1 text-xs text-slate-400">{associationActivityScope === 'exhibitions' ? '官方证据逐条核验；“展会同期主办活动”只证明品牌在展期举办活动，不等同展会官方参展商。' : '按时间倒序；角色区分主办、演讲、赞助、参展、董事会和标准工作组。'}</div></div>
               {filteredAssociationEvents.length === 0 ? <EmptyState icon={<CalendarDays size={28} />} title={associationActivityScope === 'exhibitions' ? '本轮没有匹配的展会记录' : '本轮没有匹配的论坛活动'} hint="可调整类目、品牌来源、参与性质、活动角色或竞品筛选" /> : <table className="w-full min-w-[1250px] text-sm">
                 <thead className="border-b border-slate-100 text-left text-xs text-slate-400"><tr><th className="px-5 py-3">日期 / {associationActivityScope === 'exhibitions' ? '展会' : '活动'}</th><th className="px-5 py-3">竞品 / 协会</th><th className="px-5 py-3">{associationActivityScope === 'exhibitions' ? '参与性质' : '活动类型与角色'}</th><th className="px-5 py-3">{associationActivityScope === 'exhibitions' ? '展位 / 参与细节' : '参与内容'}</th><th className="px-5 py-3">同协会活动频率</th></tr></thead>
@@ -514,7 +540,7 @@ export default function Kol() {
                   <td className="min-w-32 px-5 py-4 font-semibold text-slate-700">{associationEventFrequency.get(`${item.competitor}::${item.association}`)} 场</td>
                 </tr>)}</tbody>
               </table>}
-            </Card>
+            </Card>}
           </> : mediaView === 'coverage' ? <>
             <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
               <StatCard icon={<FileSearch size={20} />} value={MEDIA_COMPETITOR_COVERAGE.length} label="已核验露出" />
@@ -730,6 +756,17 @@ function getMediaMarket(item) {
 
 function getCompetitorOrigin(profile) {
   return profile?.origin || '海外品牌'
+}
+
+function countAssociationValues(records, key) {
+  const counts = new Map()
+  records.forEach((item) => {
+    const value = item[key]
+    if (value) counts.set(value, (counts.get(value) || 0) + 1)
+  })
+  return [...counts.entries()]
+    .map(([value, count]) => ({ value, count }))
+    .sort((a, b) => b.count - a.count || a.value.localeCompare(b.value))
 }
 
 function formatMetric(value) {
