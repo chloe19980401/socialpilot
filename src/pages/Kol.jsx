@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Star, Users, Globe, Plus, CheckCircle2, Clock, Gift, Newspaper, Search, ExternalLink, ShieldCheck, Languages, BarChart3, FileSearch, Video, Pencil, Upload, FileText, Trash2 } from 'lucide-react'
+import { Star, Users, Globe, Plus, CheckCircle2, Clock, Gift, Newspaper, Search, ExternalLink, ShieldCheck, Languages, BarChart3, FileSearch, Video, Pencil, Upload, FileText, Trash2, Building2, Handshake } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { Card, StatCard } from '../components/ui/Card'
 import PageHeader from '../components/ui/PageHeader'
@@ -7,6 +7,7 @@ import { Button, Badge, EmptyState, Modal, Field, inputClass } from '../componen
 import { MEDIA_OUTLETS } from '../data/mediaOutlets'
 import { AUDIENCE_MARKETS, COMPETITOR_CATEGORIES, COMPETITOR_NAMES, COMPETITOR_ORIGINS, COMPETITOR_PROFILES, COVERAGE_AUDIT_DATE, COVERAGE_OUTLET_MARKETS, MEDIA_COMPETITOR_COVERAGE } from '../data/mediaCompetitorCoverage'
 import { COMPETITOR_INFLUENCER_COVERAGE, INFLUENCER_AUDIT_DATE, INFLUENCER_EVIDENCE_TYPES, INFLUENCER_PLATFORMS } from '../data/competitorInfluencerCoverage'
+import { ASSOCIATION_AUDIT_DATE, INDUSTRY_ASSOCIATIONS, INDUSTRY_ASSOCIATION_CATEGORIES, INDUSTRY_ASSOCIATION_MARKETS } from '../data/industryAssociations'
 
 export default function Kol() {
   const [tab, setTab] = useState('kol')
@@ -19,6 +20,10 @@ export default function Kol() {
   const [mediaRegion, setMediaRegion] = useState('all')
   const [mediaFocus, setMediaFocus] = useState('all')
   const [mediaView, setMediaView] = useState('directory')
+  const [associationSearch, setAssociationSearch] = useState('')
+  const [associationRegion, setAssociationRegion] = useState('all')
+  const [associationCategory, setAssociationCategory] = useState('all')
+  const [associationMarket, setAssociationMarket] = useState('all')
   const [competitorFilter, setCompetitorFilter] = useState('all')
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [marketFilter, setMarketFilter] = useState('all')
@@ -84,6 +89,18 @@ export default function Kol() {
         (marketFilter === 'all' || getMediaMarket(item) === marketFilter)
     })
   }, [categoryFilter, marketFilter, mediaContacts, mediaFocus, mediaRegion, mediaSearch])
+  const associationRegions = useMemo(() => [...new Set(INDUSTRY_ASSOCIATIONS.map((item) => item.region))], [])
+  const filteredAssociations = useMemo(() => {
+    const query = associationSearch.trim().toLowerCase()
+    return INDUSTRY_ASSOCIATIONS.filter((item) => {
+      const record = mediaContacts[item.id] || {}
+      const haystack = [item.name, item.acronym, item.region, item.country, item.type, item.audience, item.opportunity, item.contact, record.actual_contact_name, record.actual_contact_email, record.contact_notes, ...item.categories].join(' ').toLowerCase()
+      return (!query || haystack.includes(query)) &&
+        (associationRegion === 'all' || item.region === associationRegion) &&
+        (associationCategory === 'all' || item.categories.includes(associationCategory)) &&
+        (associationMarket === 'all' || item.market === associationMarket)
+    })
+  }, [associationCategory, associationMarket, associationRegion, associationSearch, mediaContacts])
 
   function openMediaContact(item) {
     const record = mediaContacts[item.id]
@@ -194,7 +211,7 @@ export default function Kol() {
       <PageHeader
         icon={<Star size={28} />}
         title="KOL 管理"
-        subtitle="红人合作与全球媒体、杂志资源"
+        subtitle="红人合作与全球媒体、杂志、行业协会资源"
         actions={tab === 'kol' ? <Button variant="primary"><Plus size={16} /> 添加红人</Button> : null}
       />
 
@@ -269,12 +286,15 @@ export default function Kol() {
         </>
       ) : (
         <>
-          <div className="mb-2 font-semibold text-slate-800">全球新闻、杂志与行业媒体资源</div>
+          <div className="mb-2 font-semibold text-slate-800">全球新闻、杂志、行业媒体与协会资源</div>
           <div className="mb-4 text-sm text-slate-400">官网公开资料核验清单 · 未公开的信息明确标注，不推测邮箱或覆盖规模</div>
 
           <div className="mb-4 inline-flex rounded-xl bg-slate-100 p-1">
             <button onClick={() => setMediaView('directory')} className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium ${mediaView === 'directory' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>
               <Newspaper size={16} /> 媒体目录
+            </button>
+            <button onClick={() => setMediaView('associations')} className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium ${mediaView === 'associations' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>
+              <Building2 size={16} /> 全球行业协会
             </button>
             <button onClick={() => setMediaView('coverage')} className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium ${mediaView === 'coverage' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>
               <BarChart3 size={16} /> 竞品露出与频率
@@ -370,6 +390,40 @@ export default function Kol() {
             </table>
             )}
           </Card>
+          </> : mediaView === 'associations' ? <>
+            <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
+              <StatCard icon={<Building2 size={20} />} value={INDUSTRY_ASSOCIATIONS.length} label="协会总数" />
+              <StatCard icon={<Globe size={20} />} value={associationRegions.length} label="覆盖区域" />
+              <StatCard icon={<FileSearch size={20} />} value={INDUSTRY_ASSOCIATION_CATEGORIES.length} label="行业类目" />
+              <StatCard icon={<ShieldCheck size={20} />} value={INDUSTRY_ASSOCIATIONS.filter((item) => item.status === 'verified').length} label="官网已核验" />
+            </div>
+
+            <Card className="mb-4">
+              <div className="mb-3">
+                <div className="font-semibold text-slate-800">全球相关行业协会目录</div>
+                <div className="mt-1 text-sm text-slate-400">按智能锁、门、智能家居、安防分类；会员资格与费用以协会官网最新信息为准 · 核验日期 {ASSOCIATION_AUDIT_DATE}</div>
+              </div>
+              <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_200px_180px_180px]">
+                <label className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-500"><Search size={16} /><input value={associationSearch} onChange={(event) => setAssociationSearch(event.target.value)} className="min-w-0 flex-1 bg-transparent outline-none" placeholder="搜索协会、地区、类目或联系人" /></label>
+                <select value={associationRegion} onChange={(event) => setAssociationRegion(event.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600"><option value="all">全部地区</option>{associationRegions.map((region) => <option key={region} value={region}>{region}</option>)}</select>
+                <select value={associationCategory} onChange={(event) => setAssociationCategory(event.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600"><option value="all">全部类目</option>{INDUSTRY_ASSOCIATION_CATEGORIES.map((category) => <option key={category}>{category}</option>)}</select>
+                <select value={associationMarket} onChange={(event) => setAssociationMarket(event.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600"><option value="all">B2B / B2C 全部</option>{INDUSTRY_ASSOCIATION_MARKETS.map((market) => <option key={market}>{market}</option>)}</select>
+              </div>
+            </Card>
+
+            <Card className="overflow-x-auto p-0">
+              {filteredAssociations.length === 0 ? <EmptyState icon={<Building2 size={28} />} title="没有匹配的协会" hint="请调整搜索词或筛选条件" /> : <table className="w-full min-w-[1320px] text-sm">
+                <thead className="border-b border-slate-100 text-left text-xs text-slate-400"><tr><th className="px-5 py-3">协会 / 地区</th><th className="px-5 py-3">类目与会员群体</th><th className="px-5 py-3">官方入口</th><th className="px-5 py-3">实际联络台账</th><th className="px-5 py-3">WONLY 机会</th><th className="px-5 py-3">核验</th></tr></thead>
+                <tbody>{filteredAssociations.map((item) => <tr key={item.id} className="border-b border-slate-50 align-top hover:bg-slate-50">
+                  <td className="min-w-60 px-5 py-4"><a href={item.website} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-semibold text-brand-600 hover:underline">{item.name}<ExternalLink size={13} /></a><div className="mt-1 text-xs text-slate-500">{item.acronym} · {item.country}</div><div className="mt-2 flex flex-wrap gap-1"><Badge color="green">{item.region}</Badge><Badge>{item.type}</Badge></div></td>
+                  <td className="min-w-72 px-5 py-4"><div className="flex flex-wrap gap-1"><Badge color="green">{item.market}</Badge>{item.categories.map((category) => <Badge key={category} color="blue">{category}</Badge>)}</div><div className="mt-2 text-xs leading-5 text-slate-500">{item.audience}</div></td>
+                  <td className="min-w-72 px-5 py-4 text-xs leading-5 text-slate-500"><div>{item.contact}</div><div className="mt-2 flex flex-col items-start gap-1"><a href={item.membershipUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-medium text-brand-600 hover:underline">会员 / 加入入口<ExternalLink size={12} /></a><a href={item.contactUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-medium text-brand-600 hover:underline">官方联系入口<ExternalLink size={12} /></a></div></td>
+                  <td className="min-w-72 px-5 py-4 text-xs leading-5 text-slate-500">{mediaContacts[item.id] ? <><div className="flex flex-wrap items-center gap-1"><Badge color={contactStatusMeta(mediaContacts[item.id].contact_status).color}>{contactStatusMeta(mediaContacts[item.id].contact_status).label}</Badge>{mediaContacts[item.id].media_kit_path && <Badge color="blue">Media Kit</Badge>}</div><div className="mt-2 font-medium text-slate-700">{mediaContacts[item.id].actual_contact_name || '未填写实际联系人'}{mediaContacts[item.id].actual_contact_role ? ` · ${mediaContacts[item.id].actual_contact_role}` : ''}</div>{mediaContacts[item.id].actual_contact_email && <div className="break-all">{mediaContacts[item.id].actual_contact_email}</div>}<div className="mt-1">报价：{formatQuote(mediaContacts[item.id])}</div><div>最近联系：{formatContactDate(mediaContacts[item.id].last_contacted_at)}</div>{mediaContacts[item.id].contact_notes && <div className="mt-1 line-clamp-2 text-slate-400">{mediaContacts[item.id].contact_notes}</div>}</> : <div className="text-slate-400">尚未记录实际联络</div>}<button type="button" onClick={() => openMediaContact(item)} className="mt-2 inline-flex items-center gap-1 font-medium text-brand-600 hover:underline"><Handshake size={12} />{mediaContacts[item.id] ? '编辑联络记录' : '记录联系与报价'}</button></td>
+                  <td className="min-w-72 px-5 py-4 text-xs leading-5 text-slate-500">{item.opportunity}</td>
+                  <td className="min-w-32 px-5 py-4"><Badge color="green">官网已核验</Badge><a href={item.sourceUrl} target="_blank" rel="noreferrer" className="mt-2 block text-xs text-brand-600 hover:underline">来源</a><div className="mt-1 text-xs text-slate-400">{item.verifiedAt}</div></td>
+                </tr>)}</tbody>
+              </table>}
+            </Card>
           </> : mediaView === 'coverage' ? <>
             <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
               <StatCard icon={<FileSearch size={20} />} value={MEDIA_COMPETITOR_COVERAGE.length} label="已核验露出" />
