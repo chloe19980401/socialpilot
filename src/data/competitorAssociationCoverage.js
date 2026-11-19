@@ -106,13 +106,57 @@ const EXHIBITION_RELATIONS = {
   'ultraloq-iscwest-2026': { exhibition: 'ISC West 2026', exhibitionRelation: '产品随生态伙伴展示', venueDetail: 'XThings 展示 Ultraloq Bolt Z-Wave' },
 }
 
+// 展会画像用于市场决策筛选。日期、地点和规模优先采用主办方/品牌官方公开信息；
+// 行业影响力与 WONLY 适配度为系统基于展会定位、观众和品类匹配作出的判断，不冒充主办方评级。
+const EXHIBITION_PROFILES = {
+  'event-bau': exhibitionProfile('德国', '慕尼黑', 'Messe München', '欧洲', '全球旗舰', '建筑、门窗与建筑系统全球头部专业展；官方披露 2,200 家展商、58 个国家、18 万+专业观众。', '建筑师、开发商、承包商、门窗及建筑系统采购与渠道商', 'B2B', '高', '门、智能锁与入口系统可同时触达设计、工程和渠道决策人', '2,200 家展商 · 18 万+专业观众', 'https://bau-muenchen.com/en/trade-fair/data/numbers/'),
+  'event-salone-del-mobile': exhibitionProfile('意大利', '米兰', 'Fiera Milano Rho', '欧洲', '全球旗舰', '全球设计与家居产业旗舰；官方 2025 披露 302,786 名观众、160 个国家、2,103 家展商。', '建筑师、室内设计师、经销商、开发商、媒体与高端家居买家', 'B2B+B2C', '高', '适合高端门、入口美学、设计师合作与品牌国际化', '302,786 名观众 · 2,103 家展商', 'https://www.salonemilano.it/en/salone-del-mobile-milano-observatory/salone-del-mobile-milano-milan-design-eco-system-2025-annual-report'),
+  'event-milan-design-week': exhibitionProfile('意大利', '米兰', '全城品牌展厅及设计街区', '欧洲', '全球旗舰', '全球设计传播周，适合新品发布、设计师合作和媒体曝光；活动分散，单一官方总规模不统一。', '设计师、建筑师、媒体、品牌方、渠道与高端消费人群', 'B2B+B2C', '高', '适合建立高端门与空间设计心智，但需区分官方展商和同期活动', '全城分布式活动 · 总规模未统一公开', 'https://www.salonemilano.it/en'),
+  'event-ibs': exhibitionProfile('美国', '奥兰多', 'Orange County Convention Center', '北美', '全球旗舰', '北美住宅建造与改造核心专业展，覆盖新建住宅全产业链。', '住宅开发商、建造商、改造商、建筑师、设计师与经销渠道', 'B2B', '高', '适合门、智能锁和整屋入口方案进入北美建材渠道', '主办方最新规模待核验', 'https://www.buildersshow.com/'),
+  'event-wdf-riyadh': exhibitionProfile('沙特阿拉伯', '利雅得', 'Riyadh Front Exhibition & Conference Center', '中东', '区域核心', '聚焦门窗幕墙和建筑外立面，是中东项目采购与渠道拓展的垂直展。', '建筑师、幕墙顾问、开发商、承包商、门窗经销商与项目采购', 'B2B', '高', '与高端入户门、项目门和当地工程渠道高度匹配', '主办方最新规模待核验', 'https://windowsdoorsandfacadeevent.com/'),
+  'event-dom-fair': exhibitionProfile('斯洛文尼亚', '卢布尔雅那', 'Ljubljana Exhibition and Convention Centre', '欧洲', '区域核心', '斯洛文尼亚建筑与家居区域展，兼具专业采购和终端消费触达。', '建筑从业者、家装渠道、设计师、住宅业主', 'B2B+B2C', '中', '适合测试中东欧经销渠道和终端门产品需求', '主办方最新规模待核验', 'https://www.home-fair.si/'),
+  'event-isc-west': exhibitionProfile('美国', '拉斯维加斯', 'Venetian Expo', '北美', '全球旗舰', '北美安防与门禁旗舰展，聚集系统集成商、经销商、终端安防负责人和技术厂商。', '安防集成商、门禁经销商、安装商、企业安防负责人及政府采购', 'B2B', '高', '智能锁、门禁和智能门可直接对接北美安防渠道与生态伙伴', '主办方最新规模待核验', 'https://www.discoverisc.com/west/en-us.html'),
+  'event-intersec': exhibitionProfile('阿联酋', '迪拜', 'Dubai World Trade Centre', '中东', '全球旗舰', '中东安防、消防与商业安全核心国际展，兼具区域采购与全球品牌密度。', '安防集成商、分销商、政府与关键基础设施采购、地产项目方', 'B2B', '高', '适合智能锁、门禁、安全门与中东项目渠道拓展', '主办方最新规模待核验', 'https://intersec.ae.messefrankfurt.com/dubai/en.html'),
+  'event-asial-security': exhibitionProfile('澳大利亚', '悉尼', 'ICC Sydney', '亚太', '区域核心', '澳大利亚安防行业核心展会与会议，面向专业安装、集成和企业安防市场。', '安防集成商、安装商、经销商、企业安防负责人', 'B2B', '中', '适合验证澳新智能锁与门禁渠道，需结合本地认证和安装体系', '主办方最新规模待核验', 'https://securityexpo.com.au/'),
+  'event-security-essen': exhibitionProfile('德国', '埃森', 'Messe Essen', '欧洲', '全球旗舰', '欧洲安防垂直专业展，重点覆盖门禁、周界、关键基础设施与消防安全。', '安防集成商、设施管理、关键基础设施、政府与工业采购', 'B2B', '高', '适合安全门、智能锁、门禁与工程项目合作', '主办方最新规模待核验', 'https://www.security-essen.de/'),
+  'event-passenger-terminal-expo': exhibitionProfile('西班牙', '马德里', 'IFEMA Madrid', '欧洲', '垂直专业', '机场航站楼设计、运营与技术的国际专业展，决策人集中但应用场景垂直。', '机场运营方、建筑师、工程顾问、系统集成商与供应商', 'B2B', '中', '适合机场安全门、通行控制和高频耐用门体项目', '主办方最新规模待核验', 'https://www.passengerterminal-expo.com/'),
+  'event-singapore-archifest': exhibitionProfile('新加坡', '新加坡', 'Sands Expo and Convention Centre', '亚太', '区域核心', '新加坡建筑设计行业活动，区域设计师与建筑专业人群集中。', '建筑师、设计师、开发商、材料品牌与专业学生', 'B2B+B2C', '中', '适合东南亚设计师教育、门产品选型和品牌曝光', '主办方最新规模待核验', 'https://www.archifest.sg/'),
+  'association-cedia': exhibitionProfile('美国', '丹佛', 'Colorado Convention Center', '北美', '垂直专业', '住宅智能家居集成领域旗舰专业展；官方 2026 披露 9,653 名核验参会者、320+ 展商。', '智能家居集成商、安装商、经销商、定制住宅技术顾问', 'B2B', '高', '智能锁与全屋智能生态、专业安装渠道高度匹配', '9,653 名参会者 · 320+ 展商', 'https://cediaexpo.com/news/cedia-expo-2026-brings-together-almost-10000-residential-integration-professionals-in-denver/160970/'),
+  'association-csa': exhibitionProfile('美国', '拉斯维加斯', '展期品牌活动场地待逐场核验', '全球', '全球旗舰', 'CES 是全球消费电子旗舰；当前记录包含展期品牌论坛，不自动等同 CES 官方参展。', '消费电子渠道、技术平台、投资人、媒体、开发者与品牌方', 'B2B+B2C', '中', '适合智能锁和智能家居生态传播；门类应以智能入口场景切入', '展期活动规模未统一公开', 'https://www.ces.tech/'),
+  'association-zwave': exhibitionProfile('美国', '拉斯维加斯', 'Venetian Expo / Z-Wave Pavilion', '北美', '全球旗舰', '记录主要对应 ISC West 或 CEDIA 的联盟展区，聚焦智能安防与互操作生态。', '安防集成商、智能家居安装商、联盟成员与渠道商', 'B2B', '高', '适合智能锁生态认证、渠道联展和兼容性传播', '联盟展区规模待核验', 'https://z-wavealliance.org/'),
+}
+
+const EXHIBITION_EVENT_OVERRIDES = {
+  'dierre-fuorisalone-2022': { eventDateEnd: '2022-06-12', registrationDeadline: '已结束', estimatedCost: '待询价' },
+  'oikos-salone-2025': { eventDateEnd: '2025-04-13', registrationDeadline: '已结束' },
+  'barausse-salone-2026': { eventDateEnd: '2026-04-26', registrationDeadline: '未公开' },
+  'garofoli-fuorisalone-2025': { eventDateEnd: '2025-04-13', registrationDeadline: '已结束' },
+  'hormann-bau-2025': { eventDateEnd: '2025-01-17', registrationDeadline: '已结束' },
+  'oikos-bau-2025': { eventDateEnd: '2025-01-17', registrationDeadline: '已结束' },
+  'geze-bau-2025': { eventDateEnd: '2025-01-17', registrationDeadline: '已结束' },
+  'dormakaba-bau-2025': { eventDateEnd: '2025-01-17', registrationDeadline: '已结束' },
+  'tuya-ifa-2025': { country: '德国', city: '柏林', venue: 'Messe Berlin · 展期品牌峰会场地待核验', region: '欧洲', influenceTier: '全球旗舰', influenceBasis: 'IFA 是全球消费电子与家电旗舰展；本条证据为展期品牌开发者峰会，不自动等同官方参展。', audience: '消费电子渠道、零售商、媒体、智能家居平台、开发者与品牌方', exhibitionMarket: 'B2B+B2C', wonlyFit: '中', wonlyUse: '适合智能锁与智能家居生态传播，门类应以智能入口体验切入', scale: '展期活动规模未统一公开', profileSourceUrl: 'https://www.ifa-berlin.com/' },
+  'yale-schlage-cedia-2022-yale': { country: '美国', city: '达拉斯', venue: 'Kay Bailey Hutchison Convention Center · Z-Wave Interop Wall', region: '北美' },
+  'yale-schlage-cedia-2022-schlage': { country: '美国', city: '达拉斯', venue: 'Kay Bailey Hutchison Convention Center · Z-Wave Interop Wall', region: '北美' },
+}
+
 // 展会参与需单独区分：参展/展区赞助可视为明确展会参与；
 // “展会同期主办活动”只证明品牌在展期举办论坛，不外推为官方参展商。
 export const COMPETITOR_EXHIBITION_EVENTS = COMPETITOR_ASSOCIATION_EVENTS
   .filter((item) => EXHIBITION_RELATIONS[item.id])
-  .map((item) => ({ ...item, ...EXHIBITION_RELATIONS[item.id] }))
+  .map((item) => ({
+    ...item,
+    ...EXHIBITION_RELATIONS[item.id],
+    ...EXHIBITION_PROFILES[item.associationId],
+    ...EXHIBITION_EVENT_OVERRIDES[item.id],
+    eventDateEnd: EXHIBITION_EVENT_OVERRIDES[item.id]?.eventDateEnd || item.eventDate,
+    registrationDeadline: EXHIBITION_EVENT_OVERRIDES[item.id]?.registrationDeadline || '未公开',
+    estimatedCost: EXHIBITION_EVENT_OVERRIDES[item.id]?.estimatedCost || '待询价',
+  }))
 
 export const EXHIBITION_RELATION_TYPES = ['确认参展', '展区赞助', '产品随生态伙伴展示', '展会同期主办活动']
+export const EXHIBITION_INFLUENCE_LEVELS = ['全球旗舰', '区域核心', '垂直专业']
+export const EXHIBITION_FIT_LEVELS = ['高', '中', '低']
 
 function relationship(id, competitor, associationId, association, relationshipType, scope, evidence, evidenceDate, sourceUrl) {
   return { id, competitor, associationId, association, relationshipType, scope, evidence, evidenceDate, sourceUrl, confidence: '高' }
@@ -120,4 +164,8 @@ function relationship(id, competitor, associationId, association, relationshipTy
 
 function event(id, competitor, associationId, association, eventName, eventType, eventDate, role, participation, sourceUrl) {
   return { id, competitor, associationId, association, eventName, eventType, eventDate, role, participation, sourceUrl, confidence: '高' }
+}
+
+function exhibitionProfile(country, city, venue, region, influenceTier, influenceBasis, audience, exhibitionMarket, wonlyFit, wonlyUse, scale, profileSourceUrl) {
+  return { country, city, venue, region, influenceTier, influenceBasis, audience, exhibitionMarket, wonlyFit, wonlyUse, scale, profileSourceUrl }
 }
