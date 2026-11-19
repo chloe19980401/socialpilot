@@ -16,7 +16,7 @@ const NAV = [
   { to: '/calendar', label: '日历', Icon: Calendar },
   { to: '/schedule', label: '发布排期', Icon: CalendarClock },
   { to: '/design', label: '设计台', Icon: Palette },
-  { to: '/logs', label: 'KOL 红人管理', Icon: Star },
+  { to: '/logs', label: '媒体与合作资源', Icon: Star },
   { to: '/trends', label: '自建站看板', Icon: ShoppingCart },
   { to: '/competitors', label: '竞品分析', Icon: BarChart3 },
   { to: '/performance', label: '绩效看板', Icon: Award },

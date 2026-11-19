@@ -9,7 +9,7 @@ const TITLES = {
   '/calendar': '日历',
   '/schedule': '发布排期',
   '/design': '设计台',
-  '/logs': '红人管理',
+  '/logs': '媒体与合作资源',
   '/trends': '自建站看板',
   '/competitors': '竞品分析',
   '/performance': '绩效看板',

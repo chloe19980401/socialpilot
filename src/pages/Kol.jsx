@@ -253,8 +253,8 @@ export default function Kol() {
     <div>
       <PageHeader
         icon={<Star size={28} />}
-        title="KOL 管理"
-        subtitle="红人合作与全球媒体、杂志、行业协会资源"
+        title="媒体与合作资源"
+        subtitle="全球媒体、行业协会、竞品活动与达人合作资源"
         actions={tab === 'kol' ? <Button variant="primary"><Plus size={16} /> 添加红人</Button> : null}
       />
 
