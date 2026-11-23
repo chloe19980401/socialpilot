@@ -1,3 +1,5 @@
+import { STRATEGIC_EXHIBITION_CALENDAR } from './strategicExhibitionCalendar'
+
 // 竞品与协会关系、论坛/峰会/标准活动证据库。
 // 所有记录均来自协会或品牌官方页面；活动频率仅代表本轮已核验样本，不代表完整历史次数。
 export const ASSOCIATION_COVERAGE_AUDIT_DATE = '2026-11-19'
@@ -142,7 +144,7 @@ const EXHIBITION_EVENT_OVERRIDES = {
 
 // 展会参与需单独区分：参展/展区赞助可视为明确展会参与；
 // “展会同期主办活动”只证明品牌在展期举办论坛，不外推为官方参展商。
-export const COMPETITOR_EXHIBITION_EVENTS = COMPETITOR_ASSOCIATION_EVENTS
+const VERIFIED_COMPETITOR_EXHIBITION_EVENTS = COMPETITOR_ASSOCIATION_EVENTS
   .filter((item) => EXHIBITION_RELATIONS[item.id])
   .map((item) => ({
     ...item,
@@ -152,9 +154,16 @@ export const COMPETITOR_EXHIBITION_EVENTS = COMPETITOR_ASSOCIATION_EVENTS
     eventDateEnd: EXHIBITION_EVENT_OVERRIDES[item.id]?.eventDateEnd || item.eventDate,
     registrationDeadline: EXHIBITION_EVENT_OVERRIDES[item.id]?.registrationDeadline || '未公开',
     estimatedCost: EXHIBITION_EVENT_OVERRIDES[item.id]?.estimatedCost || '待询价',
+    categories: inferExhibitionCategories(item.eventType),
+    scopeLevel: EXHIBITION_PROFILES[item.associationId]?.influenceTier === '区域核心' ? '区域性' : '国家性',
   }))
 
-export const EXHIBITION_RELATION_TYPES = ['确认参展', '展区赞助', '产品随生态伙伴展示', '展会同期主办活动']
+export const COMPETITOR_EXHIBITION_EVENTS = [
+  ...VERIFIED_COMPETITOR_EXHIBITION_EVENTS,
+  ...STRATEGIC_EXHIBITION_CALENDAR,
+]
+
+export const EXHIBITION_RELATION_TYPES = ['确认参展', '展区赞助', '产品随生态伙伴展示', '展会同期主办活动', '建议关注']
 export const EXHIBITION_INFLUENCE_LEVELS = ['全球旗舰', '区域核心', '垂直专业']
 export const EXHIBITION_FIT_LEVELS = ['高', '中', '低']
 
@@ -168,4 +177,11 @@ function event(id, competitor, associationId, association, eventName, eventType,
 
 function exhibitionProfile(country, city, venue, region, influenceTier, influenceBasis, audience, exhibitionMarket, wonlyFit, wonlyUse, scale, profileSourceUrl) {
   return { country, city, venue, region, influenceTier, influenceBasis, audience, exhibitionMarket, wonlyFit, wonlyUse, scale, profileSourceUrl }
+}
+
+function inferExhibitionCategories(eventType = '') {
+  if (eventType.includes('门窗') || eventType.includes('幕墙')) return ['窗', '门', '幕墙', '建材']
+  if (eventType.includes('建筑') || eventType.includes('家居') || eventType.includes('设计')) return ['建材', '门']
+  if (eventType.includes('安防')) return ['安防', '智能建筑', '门']
+  return ['智能建筑']
 }
