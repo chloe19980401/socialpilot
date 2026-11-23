@@ -2,7 +2,7 @@ import { STRATEGIC_EXHIBITION_CALENDAR } from './strategicExhibitionCalendar'
 
 // 竞品与协会关系、论坛/峰会/标准活动证据库。
 // 所有记录均来自协会或品牌官方页面；活动频率仅代表本轮已核验样本，不代表完整历史次数。
-export const ASSOCIATION_COVERAGE_AUDIT_DATE = '2026-11-19'
+export const ASSOCIATION_COVERAGE_AUDIT_DATE = '2026-11-23'
 
 export const ASSOCIATION_RELATIONSHIP_TYPES = ['正式会员', '董事会 / 行业伙伴', '工作组 / 标准生态', '认证生态']
 export const ASSOCIATION_EVENT_ROLES = ['主办 / 圆桌', '演讲 / 分享', '赞助', '参展 / 产品展示', '董事会 / 年会', '标准发布 / 工作组']
@@ -26,6 +26,12 @@ export const COMPETITOR_ASSOCIATION_COVERAGE = [
 ]
 
 export const COMPETITOR_ASSOCIATION_EVENTS = [
+  event('assa-bau-2027', 'ASSA ABLOY', 'event-bau', 'BAU', 'BAU 2027', '建筑展会', '2027-01-11', '参展 / 产品展示', 'BAU 主办方 2027 展商新闻稿将 ASSA ABLOY 列入已经报名的头部展商；同期官方合作伙伴页还将其列入 BAU 2027 赞助及专业顾问体系。', 'https://bau-muenchen.com/en/trade-fair/press/press-releases/detail/bau-2027-showcases-potential-of-an-industry-on-the-move.html'),
+  event('dormakaba-bau-2027', 'dormakaba', 'event-bau', 'BAU', 'BAU 2027', '建筑展会', '2027-01-11', '参展 / 产品展示', 'BAU 主办方 2027 展商新闻稿将 dormakaba 列入已经报名的头部展商；本届展位号尚未在本轮官方证据中核实。', 'https://bau-muenchen.com/en/trade-fair/press/press-releases/detail/bau-2027-showcases-potential-of-an-industry-on-the-move.html'),
+  event('geze-bau-2027', 'GEZE', 'event-bau', 'BAU', 'BAU 2027', '建筑展会', '2027-01-11', '参展 / 产品展示', 'BAU 主办方 2027 展商新闻稿将 GEZE 列入已经报名的头部展商；本届展位号尚未在本轮官方证据中核实。', 'https://bau-muenchen.com/en/trade-fair/press/press-releases/detail/bau-2027-showcases-potential-of-an-industry-on-the-move.html'),
+  event('hormann-bau-2027', 'Hormann', 'event-bau', 'BAU', 'BAU 2027', '建筑展会', '2027-01-11', '参展 / 产品展示', 'BAU 主办方 2027 展商新闻稿将 Hörmann 列入已经报名的头部展商；与 2025 品牌官方参展记录共同构成两届连续样本。', 'https://bau-muenchen.com/en/trade-fair/press/press-releases/detail/bau-2027-showcases-potential-of-an-industry-on-the-move.html'),
+  event('andersen-ibs-2027', 'Andersen Windows & Doors', 'event-ibs', 'NAHB International Builders’ Show', 'IBS 2027', '建筑展会', '2027-02-02', '参展 / 产品展示', 'IBS 主办方实时 2027 展商目录列出 Andersen Windows & Doors；与 2026 品牌官方参展页共同构成连续两届核验样本。', 'https://www.buildersshow.com/Search/ExhibitorList'),
+  event('schlage-ibs-2027', 'Schlage', 'event-ibs', 'NAHB International Builders’ Show', 'IBS 2027', '建筑展会', '2027-02-02', '参展 / 产品展示', 'IBS 主办方实时 2027 展商目录列出 Schlage；本届展位号尚未在本轮官方证据中核实。', 'https://www.buildersshow.com/Search/ExhibitorList'),
   event('hormann-bau-2025', 'Hormann', 'event-bau', 'BAU', 'BAU 2025', '建筑展会', '2025-01-13', '参展 / 产品展示', '在 B3 馆 302 展位以超过 1,600 平方米展区展示门、门框、车库门和驱动系统。', 'https://www.hoermann.de/presse/detail/hoermann-praesentiert-sich-gewohnt-vielfaeltig-auf-der-bau-2025-ein-klares-ja-zur-messeteilnahme/'),
   event('barausse-salone-2026', 'Barausse', 'event-salone-del-mobile', 'Salone del Mobile.Milano', 'Salone del Mobile 2026', '家具与设计展会', '2026-04-21', '参展 / 产品展示', '在 14 号馆 B26 展位展示室内门、隔断系统与整体空间方案。', 'https://www.barausse.com/en/barausse-x-salone-del-mobile_111_12'),
   event('dierre-fuorisalone-2022', 'Dierre', 'event-milan-design-week', 'Milano Design Week', 'Fuorisalone 2022', '设计周活动', '2022-06-07', '主办 / 圆桌', '在米兰设计周期间通过合作展厅展示安全门、室内门与空间解决方案；按展期品牌活动记录。', 'https://www.dierre.com/en/salone-del-mobile/'),
@@ -71,6 +77,12 @@ export const COMPETITOR_ASSOCIATION_EVENTS = [
 ]
 
 const EXHIBITION_RELATIONS = {
+  'assa-bau-2027': { exhibition: 'BAU 2027', exhibitionRelation: '确认参展', venueDetail: 'Messe München · 官方已报名展商 · 展位待公布' },
+  'dormakaba-bau-2027': { exhibition: 'BAU 2027', exhibitionRelation: '确认参展', venueDetail: 'Messe München · 官方已报名展商 · 展位待公布' },
+  'geze-bau-2027': { exhibition: 'BAU 2027', exhibitionRelation: '确认参展', venueDetail: 'Messe München · 官方已报名展商 · 展位待公布' },
+  'hormann-bau-2027': { exhibition: 'BAU 2027', exhibitionRelation: '确认参展', venueDetail: 'Messe München · 官方已报名展商 · 展位待公布' },
+  'andersen-ibs-2027': { exhibition: 'IBS 2027', exhibitionRelation: '确认参展', venueDetail: 'Las Vegas Convention Center · 官方展商目录 · 展位待核实' },
+  'schlage-ibs-2027': { exhibition: 'IBS 2027', exhibitionRelation: '确认参展', venueDetail: 'Las Vegas Convention Center · 官方展商目录 · 展位待核实' },
   'hormann-bau-2025': { exhibition: 'BAU 2025', exhibitionRelation: '确认参展', venueDetail: 'Hall B3 · Stand 302 · 1,600+ m²' },
   'barausse-salone-2026': { exhibition: 'Salone del Mobile 2026', exhibitionRelation: '确认参展', venueDetail: 'Hall 14 · Booth B26' },
   'dierre-fuorisalone-2022': { exhibition: 'Milano Design Week 2022', exhibitionRelation: '展会同期主办活动', venueDetail: '米兰合作展厅 · 品牌展示活动' },
@@ -129,6 +141,12 @@ const EXHIBITION_PROFILES = {
 }
 
 const EXHIBITION_EVENT_OVERRIDES = {
+  'assa-bau-2027': { eventDateEnd: '2027-01-15', registrationDeadline: '已确认参展' },
+  'dormakaba-bau-2027': { eventDateEnd: '2027-01-15', registrationDeadline: '已确认参展' },
+  'geze-bau-2027': { eventDateEnd: '2027-01-15', registrationDeadline: '已确认参展' },
+  'hormann-bau-2027': { eventDateEnd: '2027-01-15', registrationDeadline: '已确认参展' },
+  'andersen-ibs-2027': { country: '美国', city: '拉斯维加斯', venue: 'Las Vegas Convention Center', region: '北美', eventDateEnd: '2027-02-04', registrationDeadline: '已确认参展' },
+  'schlage-ibs-2027': { country: '美国', city: '拉斯维加斯', venue: 'Las Vegas Convention Center', region: '北美', eventDateEnd: '2027-02-04', registrationDeadline: '已确认参展' },
   'dierre-fuorisalone-2022': { eventDateEnd: '2022-06-12', registrationDeadline: '已结束', estimatedCost: '待询价' },
   'oikos-salone-2025': { eventDateEnd: '2025-04-13', registrationDeadline: '已结束' },
   'barausse-salone-2026': { eventDateEnd: '2026-04-26', registrationDeadline: '未公开' },
