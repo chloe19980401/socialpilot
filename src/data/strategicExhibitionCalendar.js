@@ -3,6 +3,10 @@
 export const STRATEGIC_EXHIBITION_AUDIT_DATE = '2026-11-23'
 
 export const EXHIBITION_INDUSTRY_CATEGORIES = ['建材', '窗', '门', '幕墙', '智能建筑', '安防']
+export const EXHIBITION_DETAIL_CATEGORY_LABELS = {
+  door: '门类', smartLock: '智能锁', engineeringDoor: '工程门', fireDoor: '防火门',
+  window: '窗类', curtainWall: '幕墙', smartHome: '智能家居', security: '安防', buildingMaterials: '综合建材',
+}
 export const EXHIBITION_SCOPE_LEVELS = ['区域性', '国家性']
 export const EXHIBITION_CALENDAR_YEARS = ['2027', '2028']
 export const EXHIBITION_REGISTRATION_STATES = ['报名已开放', '报名待开放', '报名时间待公布']
@@ -311,8 +315,14 @@ function additional2027RegionalExhibitions() { return [
 
 function plannedExhibition(item) {
   const registrationState = item.registrationState || (item.registrationStatus?.includes('已开放') ? '报名已开放' : item.registrationStatus?.includes('尚未开放') ? '报名待开放' : '报名时间待公布')
+  const categoryProfile = buildCategoryProfile(item)
   return {
     ...item,
+    categoryProfile,
+    categoryBasis: item.categoryBasis || '依据主办方公开展会定位与现有行业板块映射；尚未逐项核验官方类目目录。',
+    categoryConfidence: item.categoryConfidence || '基于官方展会定位',
+    recommendedProducts: item.recommendedProducts || recommendProducts(categoryProfile),
+    exhibitTheme: item.exhibitTheme || buildExhibitTheme(categoryProfile),
     eventName: item.exhibition,
     eventType: '目标展会',
     association: item.organizer,
@@ -329,4 +339,35 @@ function plannedExhibition(item) {
     confidence: '高',
     isPlanningRecord: true,
   }
+}
+
+function buildCategoryProfile(item) {
+  const categories = new Set(item.categories || [])
+  const profile = {
+    door: categories.has('门') ? 4 : 1,
+    smartLock: categories.has('安防') && categories.has('门') ? 4 : categories.has('智能建筑') ? 3 : 1,
+    engineeringDoor: categories.has('门') && categories.has('建材') ? 4 : categories.has('门') ? 3 : 1,
+    fireDoor: categories.has('门') && (categories.has('安防') || categories.has('建材')) ? 3 : 1,
+    window: categories.has('窗') ? 4 : 1,
+    curtainWall: categories.has('幕墙') ? 5 : categories.has('窗') ? 3 : 1,
+    smartHome: categories.has('智能建筑') ? 4 : 1,
+    security: categories.has('安防') ? 5 : categories.has('智能建筑') ? 3 : 1,
+    buildingMaterials: categories.has('建材') ? 5 : 2,
+  }
+  const name = `${item.exhibition || ''} ${(item.aliases || []).join(' ')}`
+  if (/glass|windoor|fenster|window|door|facade|frontale|r\+t|门窗|幕墙/i.test(name)) Object.assign(profile, { door: 5, window: 5, curtainWall: Math.max(profile.curtainWall, 4), engineeringDoor: Math.max(profile.engineeringDoor, 4) })
+  if (/security|isc\b|gsx|intersec|exposec|安防/i.test(name)) Object.assign(profile, { security: 5, smartLock: 5, fireDoor: Math.max(profile.fireDoor, 4), door: Math.max(profile.door, 3) })
+  if (/cedia|light \+ building|smart|智能/i.test(name)) Object.assign(profile, { smartHome: 5, smartLock: Math.max(profile.smartLock, 4) })
+  if (/big 5|build|bau\b|batimat|architect|ibs|feicon|batev|worldbex|archidex|建材/i.test(name)) Object.assign(profile, { buildingMaterials: 5, engineeringDoor: Math.max(profile.engineeringDoor, 4) })
+  return { ...profile, ...(item.categoryProfile || {}) }
+}
+
+function recommendProducts(profile) {
+  const mapping = { door: '高端入户门', smartLock: '智能锁', engineeringDoor: '工程门', fireDoor: '防火门', window: '系统窗', curtainWall: '门窗幕墙配套', smartHome: '智能入口方案', security: '安防门与门禁', buildingMaterials: '门墙柜一体化方案' }
+  return Object.entries(profile).filter(([, score]) => score >= 4).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([key]) => mapping[key])
+}
+
+function buildExhibitTheme(profile) {
+  const top = Object.entries(profile).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([key]) => EXHIBITION_DETAIL_CATEGORY_LABELS[key])
+  return `${top.join(' × ')}专业方案`
 }

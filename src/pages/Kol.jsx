@@ -9,7 +9,7 @@ import { AUDIENCE_MARKETS, COMPETITOR_CATEGORIES, COMPETITOR_NAMES, COMPETITOR_O
 import { COMPETITOR_INFLUENCER_COVERAGE, INFLUENCER_AUDIT_DATE, INFLUENCER_EVIDENCE_TYPES, INFLUENCER_PLATFORMS } from '../data/competitorInfluencerCoverage'
 import { ASSOCIATION_AUDIT_DATE, INDUSTRY_ASSOCIATIONS, INDUSTRY_ASSOCIATION_CATEGORIES, INDUSTRY_ASSOCIATION_MARKETS } from '../data/industryAssociations'
 import { ASSOCIATION_COVERAGE_AUDIT_DATE, ASSOCIATION_EVENT_ROLES, ASSOCIATION_RELATIONSHIP_TYPES, COMPETITOR_ASSOCIATION_COVERAGE, COMPETITOR_ASSOCIATION_EVENTS, COMPETITOR_EXHIBITION_EVENTS, EXHIBITION_FIT_LEVELS, EXHIBITION_INFLUENCE_LEVELS, EXHIBITION_RELATION_TYPES } from '../data/competitorAssociationCoverage'
-import { EXHIBITION_CALENDAR_YEARS, EXHIBITION_INDUSTRY_CATEGORIES, EXHIBITION_REGISTRATION_STATES, EXHIBITION_SCOPE_LEVELS, STRATEGIC_EXHIBITION_AUDIT_DATE } from '../data/strategicExhibitionCalendar'
+import { EXHIBITION_CALENDAR_YEARS, EXHIBITION_DETAIL_CATEGORY_LABELS, EXHIBITION_INDUSTRY_CATEGORIES, EXHIBITION_REGISTRATION_STATES, EXHIBITION_SCOPE_LEVELS, STRATEGIC_EXHIBITION_AUDIT_DATE } from '../data/strategicExhibitionCalendar'
 
 export default function Kol() {
   const [tab, setTab] = useState('media')
@@ -256,7 +256,16 @@ export default function Kol() {
     const unique = new Map()
     filteredAssociationEvents.forEach((item) => {
       const current = unique.get(item.exhibition)
-      if (!current || (current.isPlanningRecord && !item.isPlanningRecord)) unique.set(item.exhibition, item)
+      if (!current) unique.set(item.exhibition, item)
+      else if (current.isPlanningRecord && !item.isPlanningRecord) unique.set(item.exhibition, {
+        ...current,
+        ...item,
+        categoryProfile: item.categoryProfile || current.categoryProfile,
+        categoryBasis: item.categoryBasis || current.categoryBasis,
+        categoryConfidence: item.categoryConfidence || current.categoryConfidence,
+        recommendedProducts: item.recommendedProducts || current.recommendedProducts,
+        exhibitTheme: item.exhibitTheme || current.exhibitTheme,
+      })
     })
     const groups = new Map()
     unique.forEach((item) => {
@@ -585,7 +594,7 @@ export default function Kol() {
                       <td className="min-w-72 px-5 py-4"><a href={item.sourceUrl} target="_blank" rel="noreferrer" className="inline-flex items-start gap-1 font-semibold text-brand-600 hover:underline">{item.exhibition}<ExternalLink size={13} className="mt-0.5" /></a><div className="mt-1 text-xs text-slate-500">{item.eventDate}{item.eventDateEnd !== item.eventDate ? ` 至 ${item.eventDateEnd}` : ''}</div><div className="mt-2 flex flex-wrap gap-1">{item.categories?.map((category) => <Badge key={category} color="slate">{category}</Badge>)}</div></td>
                       <td className="min-w-52 px-5 py-4"><div className="font-medium text-slate-700">{item.country} · {item.city}</div><div className="mt-1 text-xs text-slate-500">{item.venue}</div><div className="mt-2 flex gap-1"><Badge color={item.scopeLevel === '区域性' ? 'green' : 'blue'}>{item.scopeLevel}</Badge><Badge color={item.influenceTier === '全球旗舰' ? 'blue' : 'green'}>{item.influenceTier}</Badge></div></td>
                       <td className="min-w-64 px-5 py-4"><div className="text-xs leading-5 text-slate-500">{item.scale}</div><div className="mt-2 grid grid-cols-2 gap-2 rounded-lg bg-slate-50 p-2 text-xs"><div><span className="text-slate-400">展商</span><div className="font-semibold text-slate-700">{stats.exhibitors}</div></div><div><span className="text-slate-400">观众</span><div className="font-semibold text-slate-700">{stats.visitors}</div></div></div><div className="mt-2"><Badge color={isFirstEdition(item) ? 'orange' : 'green'}>{isFirstEdition(item) ? '首届待验证' : '已有往届实绩'}</Badge></div></td>
-                      <td className="min-w-80 px-5 py-4 text-xs leading-5 text-slate-500"><Badge color={item.wonlyFit === '高' ? 'blue' : 'orange'}>WONLY {item.wonlyFit}适配</Badge><div className="mt-2"><span className="font-medium text-slate-700">核心受众：</span>{item.audience}</div><div className="mt-1"><span className="font-medium text-slate-700">价值：</span>{item.wonlyUse}</div></td>
+                      <td className="min-w-80 px-5 py-4 text-xs leading-5 text-slate-500"><Badge color={item.wonlyFit === '高' ? 'blue' : 'orange'}>WONLY {item.wonlyFit}适配</Badge><CategoryProfileSummary item={item} /><div className="mt-2"><span className="font-medium text-slate-700">核心受众：</span>{item.audience}</div><div className="mt-1"><span className="font-medium text-slate-700">价值：</span>{item.wonlyUse}</div></td>
                       <td className="min-w-64 px-5 py-4 text-xs leading-5"><div className="rounded-lg bg-amber-50 px-3 py-2 text-amber-800">{item.registrationDeadline}</div>{item.registrationUrl && <a href={item.registrationUrl} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 font-medium text-brand-600 hover:underline">官方报名入口<ExternalLink size={11} /></a>}</td>
                       <td className="min-w-52 px-5 py-4"><Badge color={recommendation.color}>{recommendation.label}</Badge><div className="mt-2 text-xs leading-5 text-slate-500">{recommendation.reason}</div></td>
                     </tr>})}</tbody>
@@ -615,7 +624,7 @@ export default function Kol() {
                   </>}
                   <td className="min-w-64 px-5 py-4"><div className="font-semibold text-slate-700">{item.isPlanningRecord ? 'WONLY 目标展会' : item.competitor}</div><div className="mt-1 text-xs text-slate-500">{item.association}</div>{item.isPlanningRecord ? <div className="mt-2"><Badge color="orange">尚未核验竞品参展</Badge></div> : <div className="mt-2 flex flex-wrap gap-1"><Badge color="green">{competitorProfileMap.get(item.competitor)?.market}</Badge><Badge color={getCompetitorOrigin(competitorProfileMap.get(item.competitor)) === '中国出海' ? 'orange' : 'slate'}>{getCompetitorOrigin(competitorProfileMap.get(item.competitor))}</Badge>{competitorProfileMap.get(item.competitor)?.categories.map((category) => <Badge key={category} color="blue">{category}</Badge>)}</div>}</td>
                   <td className="min-w-52 px-5 py-4">{associationActivityScope === 'exhibitions' ? <Badge color={item.exhibitionRelation === '确认参展' ? 'green' : item.exhibitionRelation === '展区赞助' ? 'blue' : 'orange'}>{item.exhibitionRelation}</Badge> : <><Badge>{item.eventType}</Badge><div className="mt-2"><Badge color={item.role === '赞助' ? 'green' : item.role === '主办 / 圆桌' ? 'blue' : 'orange'}>{item.role}</Badge></div></>}</td>
-                  <td className="min-w-96 max-w-[460px] px-5 py-4 text-xs leading-5 text-slate-500">{associationActivityScope === 'exhibitions' ? <><div className="flex flex-wrap gap-1"><Badge color="green">{item.exhibitionMarket}</Badge><Badge color={item.wonlyFit === '高' ? 'blue' : item.wonlyFit === '中' ? 'orange' : 'slate'}>WONLY {item.wonlyFit}适配</Badge></div><div className="mt-2"><span className="font-medium text-slate-700">核心受众：</span>{item.audience}</div><div className="mt-1"><span className="font-medium text-slate-700">参展价值：</span>{item.wonlyUse}</div><details className="mt-2"><summary className="cursor-pointer font-medium text-brand-600">查看竞品参与证据</summary><div className="mt-1">{item.participation}</div><div className="mt-1 text-slate-400">{item.confidence}置信度 · 官方来源</div></details></> : <>{item.participation}<div className="mt-2 text-slate-400">{item.confidence}置信度 · 官方来源</div></>}</td>
+                  <td className="min-w-96 max-w-[460px] px-5 py-4 text-xs leading-5 text-slate-500">{associationActivityScope === 'exhibitions' ? <><div className="flex flex-wrap gap-1"><Badge color="green">{item.exhibitionMarket}</Badge><Badge color={item.wonlyFit === '高' ? 'blue' : item.wonlyFit === '中' ? 'orange' : 'slate'}>WONLY {item.wonlyFit}适配</Badge></div><CategoryProfileSummary item={item} /><div className="mt-2"><span className="font-medium text-slate-700">核心受众：</span>{item.audience}</div><div className="mt-1"><span className="font-medium text-slate-700">参展价值：</span>{item.wonlyUse}</div><details className="mt-2"><summary className="cursor-pointer font-medium text-brand-600">查看竞品参与证据</summary><div className="mt-1">{item.participation}</div><div className="mt-1 text-slate-400">{item.confidence}置信度 · 官方来源</div></details></> : <>{item.participation}<div className="mt-2 text-slate-400">{item.confidence}置信度 · 官方来源</div></>}</td>
                   <td className="min-w-64 px-5 py-4 text-xs leading-5 text-slate-500">{associationActivityScope === 'exhibitions' ? <><div className="rounded-lg bg-amber-50 px-3 py-2 text-amber-800"><span className="font-semibold">报名时间：</span>{item.registrationDeadline}</div>{item.registrationUrl && <a href={item.registrationUrl} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 font-medium text-brand-600 hover:underline">官方报名入口<ExternalLink size={11} /></a>}<div className="mt-2"><span className="font-medium text-slate-700">预计费用：</span>{item.estimatedCost}</div><div className="mt-1"><span className="font-medium text-slate-700">竞品样本频率：</span>{item.isPlanningRecord ? '待反查' : `${associationEventFrequency.get(`${item.competitor}::${item.association}`) || 0} 场`}</div><div className="mt-1 text-slate-400">实际报价 / 联系人：未记录</div></> : <span className="font-semibold text-slate-700">{associationEventFrequency.get(`${item.competitor}::${item.association}`)} 场</span>}</td>
                 </tr>)}</tbody>
               </table>}
@@ -838,6 +847,17 @@ function getCompetitorOrigin(profile) {
   return profile?.origin || '海外品牌'
 }
 
+function CategoryProfileSummary({ item }) {
+  if (!item.categoryProfile) return null
+  const sorted = Object.entries(item.categoryProfile).sort((a, b) => b[1] - a[1])
+  return <details className="mt-2 rounded-lg bg-slate-50 p-2">
+    <summary className="cursor-pointer font-medium text-brand-600">专业类目垂直度 · {item.categoryConfidence || '待核验'}</summary>
+    <div className="mt-2 grid grid-cols-3 gap-1">{sorted.map(([key, score]) => <div key={key} className="rounded bg-white px-2 py-1"><span className="text-slate-500">{EXHIBITION_DETAIL_CATEGORY_LABELS[key] || key}</span><span className={`float-right font-bold ${score >= 4 ? 'text-emerald-600' : score >= 3 ? 'text-amber-600' : 'text-slate-400'}`}>{score}/5</span></div>)}</div>
+    <div className="mt-2 text-slate-500"><span className="font-medium text-slate-700">建议产品：</span>{(item.recommendedProducts || []).join('、') || '待评估'}</div>
+    <div className="mt-1 text-slate-400">{item.categoryBasis}</div>
+  </details>
+}
+
 function RegionComparisonChart({ region, items }) {
   const maxScore = Math.max(...items.map((item) => item.comparisonScore), 100)
   return <div className="border-b border-slate-100 bg-slate-50/40 px-5 py-5">
@@ -848,10 +868,10 @@ function RegionComparisonChart({ region, items }) {
     <div className="space-y-3">{items.map((item, index) => {
       const dimensions = getExhibitionComparisonDimensions(item)
       const firstEdition = isFirstEdition(item)
-      return <button key={item.id || item.exhibition} type="button" onClick={() => document.getElementById(`exhibition-${item.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })} className="grid w-full gap-2 rounded-xl border border-transparent px-3 py-2 text-left transition hover:border-brand-200 hover:bg-white lg:grid-cols-[260px_minmax(320px,1fr)_390px] lg:items-center">
+      return <button key={item.id || item.exhibition} type="button" onClick={() => document.getElementById(`exhibition-${item.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })} className="grid w-full gap-2 rounded-xl border border-transparent px-3 py-2 text-left transition hover:border-brand-200 hover:bg-white lg:grid-cols-[260px_minmax(320px,1fr)_470px] lg:items-center">
         <div className="min-w-0"><div className="flex items-center gap-2"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white text-xs font-bold text-slate-500 shadow-sm">{index + 1}</span><span className="truncate text-sm font-semibold text-slate-700">{item.exhibition}</span></div><div className="ml-8 mt-0.5 text-xs text-slate-400">{item.country} · {item.city}</div></div>
         <div className="flex items-center gap-3"><div className="h-5 flex-1 overflow-hidden rounded-full bg-slate-200"><div className={`flex h-full items-center justify-end rounded-full pr-2 text-[10px] font-bold text-white transition-all ${firstEdition ? 'bg-amber-400' : 'bg-brand-500'}`} style={{ width: `${Math.max(12, (item.comparisonScore / maxScore) * 100)}%` }}>{item.comparisonScore}</div></div><span className="w-12 text-right text-sm font-bold text-slate-700">{item.comparisonScore}</span></div>
-        <div className="grid grid-cols-4 gap-1 text-center text-[10px]"><DimensionPill label="影响力" value={dimensions.influence} max={28} /><DimensionPill label="适配" value={dimensions.fit} max={25} /><DimensionPill label="证据" value={dimensions.evidence} max={15} /><DimensionPill label="报名" value={dimensions.registration} max={12} /></div>
+        <div className="grid grid-cols-5 gap-1 text-center text-[10px]"><DimensionPill label="类目" value={dimensions.categoryFit} max={25} /><DimensionPill label="影响力" value={dimensions.influence} max={20} /><DimensionPill label="适配" value={dimensions.fit} max={15} /><DimensionPill label="证据" value={dimensions.evidence} max={15} /><DimensionPill label="报名" value={dimensions.registration} max={8} /></div>
       </button>
     })}</div>
   </div>
@@ -884,7 +904,7 @@ function exportRegionComparisonPng(region, items) {
   ctx.fillText(`${region}展会综合对比`, 78, 88)
   ctx.fillStyle = '#64748b'
   ctx.font = '18px "PingFang SC", "Microsoft YaHei", sans-serif'
-  ctx.fillText('统一比较行业影响力、WONLY适配度、历史证据、报名可执行性与展会成熟度', 78, 124)
+  ctx.fillText('统一比较九项专业类目垂直度、行业影响力、WONLY适配、历史证据、报名可执行性与成熟度', 78, 124)
   drawCanvasLegend(ctx, 1180, 83, '#3b82f6', '已有往届实绩')
   drawCanvasLegend(ctx, 1380, 83, '#f59e0b', '首届待验证')
 
@@ -901,8 +921,8 @@ function exportRegionComparisonPng(region, items) {
     ctx.fillStyle = '#e2e8f0'; roundCanvasRect(ctx, barX, barY, barWidth, barHeight, 15); ctx.fill()
     ctx.fillStyle = firstEdition ? '#f59e0b' : '#3b82f6'; roundCanvasRect(ctx, barX, barY, Math.max(60, barWidth * item.comparisonScore / 100), barHeight, 15); ctx.fill()
     ctx.fillStyle = '#0f172a'; ctx.font = '700 24px sans-serif'; ctx.fillText(`${item.comparisonScore}/100`, 1055, y + 52)
-    const pills = [['影响力', dimensions.influence, 28], ['适配', dimensions.fit, 25], ['证据', dimensions.evidence, 15], ['报名', dimensions.registration, 12]]
-    pills.forEach(([label, value, max], pillIndex) => drawCanvasPill(ctx, 1190 + pillIndex * 90, y + 26, `${label} ${value}/${max}`, value / max >= 0.8))
+    const pills = [['类目', dimensions.categoryFit, 25], ['影响力', dimensions.influence, 20], ['适配', dimensions.fit, 15], ['证据', dimensions.evidence, 15], ['报名', dimensions.registration, 8]]
+    pills.forEach(([label, value, max], pillIndex) => drawCanvasPill(ctx, 1140 + pillIndex * 86, y + 26, `${label} ${value}/${max}`, value / max >= 0.8))
   })
   ctx.fillStyle = '#94a3b8'; ctx.font = '14px "PingFang SC", "Microsoft YaHei", sans-serif'
   ctx.fillText(`生成日期 ${new Date().toLocaleDateString('zh-CN')} · 分数为 WONLY 内部决策模型，不代表主办方或第三方评级`, 78, height - 62)
@@ -953,6 +973,7 @@ function formatMetric(value) {
 }
 
 function toExhibitionExportRow(item) {
+  const profile = item.categoryProfile || {}
   return {
     '大区': getExhibitionMajorRegion(item),
     '展会地区': item.region || '',
@@ -965,6 +986,11 @@ function toExhibitionExportRow(item) {
     '展位 / 场馆详情': item.venueDetail || '',
     '主办方 / 协会': item.association || '',
     '行业标签': (item.categories || []).join('、'),
+    ...Object.fromEntries(Object.entries(EXHIBITION_DETAIL_CATEGORY_LABELS).map(([key, label]) => [`${label}垂直度（1-5）`, profile[key] || '待评估'])),
+    '类目判断依据': item.categoryBasis || '',
+    '类目证据状态': item.categoryConfidence || '',
+    '建议参展产品': (item.recommendedProducts || []).join('、'),
+    '建议展位主题': item.exhibitTheme || '',
     '展会级别': item.scopeLevel || '',
     '行业影响力': item.influenceTier || '',
     '影响力依据': item.influenceBasis || '',
@@ -1030,14 +1056,28 @@ function getExhibitionComparisonScore(item) {
 }
 
 function getExhibitionComparisonDimensions(item) {
-  const influence = item.influenceTier === '全球旗舰' ? 28 : item.influenceTier === '区域核心' ? 23 : 17
-  const fit = item.wonlyFit === '高' ? 25 : item.wonlyFit === '中' ? 17 : 9
-  const registration = item.registrationState === '报名已开放' ? 12 : item.registrationState === '报名待开放' ? 8 : 5
-  const scope = item.priority === '区域优先' ? 10 : 7
+  const influence = item.influenceTier === '全球旗舰' ? 20 : item.influenceTier === '区域核心' ? 17 : 13
+  const categoryFit = getDetailedCategoryFit(item)
+  const fit = item.wonlyFit === '高' ? 15 : item.wonlyFit === '中' ? 10 : 5
+  const registration = item.registrationState === '报名已开放' ? 8 : item.registrationState === '报名待开放' ? 6 : 3
+  const scope = item.priority === '区域优先' ? 7 : 5
   const stats = getPreviousEditionStats(item)
   const evidence = stats.exhibitors !== '未公开' || stats.visitors !== '未公开' ? 15 : isFirstEdition(item) ? 5 : 8
   const maturity = isFirstEdition(item) ? 8 : 10
-  return { influence, fit, registration, scope, evidence, maturity }
+  return { influence, categoryFit, fit, registration, scope, evidence, maturity }
+}
+
+function getDetailedCategoryFit(item) {
+  const categories = new Set(item.categories || [])
+  const profile = item.categoryProfile || {
+    door: categories.has('门') ? 4 : 1, smartLock: categories.has('安防') ? 4 : categories.has('智能建筑') ? 3 : 1,
+    engineeringDoor: categories.has('门') && categories.has('建材') ? 4 : 1, fireDoor: categories.has('安防') && categories.has('门') ? 4 : 1,
+    window: categories.has('窗') ? 4 : 1, curtainWall: categories.has('幕墙') ? 5 : categories.has('窗') ? 3 : 1,
+    smartHome: categories.has('智能建筑') ? 4 : 1, security: categories.has('安防') ? 5 : 1, buildingMaterials: categories.has('建材') ? 5 : 2,
+  }
+  const weights = { door: 0.18, smartLock: 0.18, engineeringDoor: 0.14, fireDoor: 0.1, window: 0.1, curtainWall: 0.08, smartHome: 0.1, security: 0.07, buildingMaterials: 0.05 }
+  const weighted = Object.entries(weights).reduce((sum, [key, weight]) => sum + (profile[key] || 1) * weight, 0)
+  return Math.round((weighted / 5) * 25)
 }
 
 function getExhibitionRecommendation(item, index) {
