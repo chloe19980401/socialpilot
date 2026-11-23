@@ -40,6 +40,7 @@ export default function Kol() {
   const [exhibitionScope, setExhibitionScope] = useState('all')
   const [exhibitionYear, setExhibitionYear] = useState('all')
   const [exhibitionRegistration, setExhibitionRegistration] = useState('all')
+  const [exhibitionDisplayMode, setExhibitionDisplayMode] = useState('regionalComparison')
   const [associationDashboardScope, setAssociationDashboardScope] = useState('exhibitions')
   const [associationOrganizationFilter, setAssociationOrganizationFilter] = useState('all')
   const [mediaContacts, setMediaContacts] = useState({})
@@ -250,6 +251,24 @@ export default function Kol() {
   const exhibitionNames = useMemo(() => new Set(COMPETITOR_EXHIBITION_EVENTS.map((item) => item.exhibition)), [])
   const exhibitionRegions = useMemo(() => [...new Set(COMPETITOR_EXHIBITION_EVENTS.map((item) => item.region).filter(Boolean))], [])
   const exhibitionOrganizations = useMemo(() => [...new Set(COMPETITOR_EXHIBITION_EVENTS.map((item) => item.association).filter(Boolean))].sort(), [])
+  const regionalExhibitionComparisons = useMemo(() => {
+    if (associationActivityScope !== 'exhibitions') return []
+    const unique = new Map()
+    filteredAssociationEvents.forEach((item) => {
+      const current = unique.get(item.exhibition)
+      if (!current || (current.isPlanningRecord && !item.isPlanningRecord)) unique.set(item.exhibition, item)
+    })
+    const groups = new Map()
+    unique.forEach((item) => {
+      const region = item.region || '其他地区'
+      const score = getExhibitionComparisonScore(item)
+      if (!groups.has(region)) groups.set(region, [])
+      groups.get(region).push({ ...item, comparisonScore: score })
+    })
+    return [...groups.entries()]
+      .map(([region, items]) => ({ region, items: items.sort((a, b) => b.comparisonScore - a.comparisonScore || a.eventDate.localeCompare(b.eventDate)) }))
+      .sort((a, b) => a.region.localeCompare(b.region, 'zh-CN'))
+  }, [associationActivityScope, filteredAssociationEvents])
   const associationSummaryRecords = useMemo(() => [...COMPETITOR_ASSOCIATION_COVERAGE, ...COMPETITOR_ASSOCIATION_EVENTS]
     .filter((item) => categoryFilter === 'all' || competitorProfileMap.get(item.competitor)?.categories.includes(categoryFilter))
     .filter((item) => marketFilter === 'all' || competitorProfileMap.get(item.competitor)?.market === marketFilter)
@@ -507,6 +526,11 @@ export default function Kol() {
                     <select value={exhibitionFit} onChange={(event) => setExhibitionFit(event.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600"><option value="all">全部 WONLY 适配度</option>{EXHIBITION_FIT_LEVELS.map((level) => <option key={level} value={level}>{level}适配</option>)}</select>
                   </>}
                 </div>
+                {associationActivityScope === 'exhibitions' && <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
+                  <span className="text-xs font-medium text-slate-400">展示方式</span>
+                  <button type="button" onClick={() => setExhibitionDisplayMode('regionalComparison')} className={`rounded-lg px-3 py-1.5 text-sm font-medium ${exhibitionDisplayMode === 'regionalComparison' ? 'bg-brand-50 text-brand-700 ring-1 ring-brand-200' : 'text-slate-500 hover:bg-slate-50'}`}>区域综合对比</button>
+                  <button type="button" onClick={() => setExhibitionDisplayMode('detailTable')} className={`rounded-lg px-3 py-1.5 text-sm font-medium ${exhibitionDisplayMode === 'detailTable' ? 'bg-brand-50 text-brand-700 ring-1 ring-brand-200' : 'text-slate-500 hover:bg-slate-50'}`}>全部明细</button>
+                </div>}
                 <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-7">
                   <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600"><option value="all">全部类目</option>{(associationActivityScope === 'exhibitions' ? EXHIBITION_INDUSTRY_CATEGORIES : COMPETITOR_CATEGORIES).map((category) => <option key={category} value={category}>{category}</option>)}</select>
                   <select value={marketFilter} onChange={(event) => setMarketFilter(event.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600"><option value="all">B2B / B2C 全部</option>{AUDIENCE_MARKETS.map((market) => <option key={market} value={market}>{market}</option>)}</select>
@@ -546,7 +570,31 @@ export default function Kol() {
               </table>}
             </Card>}
 
-            {associationDashboardScope !== 'relationships' && <Card className="w-full min-w-0 max-w-full overflow-hidden p-0">
+            {associationDashboardScope !== 'relationships' && associationActivityScope === 'exhibitions' && exhibitionDisplayMode === 'regionalComparison' && <div className="space-y-4">
+              {regionalExhibitionComparisons.length === 0 ? <Card><EmptyState icon={<CalendarDays size={28} />} title="本轮没有匹配的区域对比" hint="可调整年份、类目、地区、报名状态或适配度筛选" /></Card> : regionalExhibitionComparisons.map(({ region, items }) => <Card key={region} className="overflow-hidden p-0">
+                <div className="flex flex-col gap-2 border-b border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div><div className="flex items-center gap-2"><Globe size={18} className="text-brand-600" /><div className="font-semibold text-slate-800">{region}展会综合对比</div><Badge color="blue">{items.length} 场</Badge></div><div className="mt-1 text-xs text-slate-400">评分统一考虑行业影响力、WONLY 适配、报名可执行性、历史规模证据和展会成熟度；首届展会单独标示风险。</div></div>
+                  <div className="text-xs text-slate-400">同一区域内优先级排序</div>
+                </div>
+                <RegionComparisonChart region={region} items={items} />
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[1380px] text-sm">
+                    <thead className="border-b border-slate-100 bg-slate-50/70 text-left text-xs text-slate-400"><tr><th className="px-5 py-3">排名 / 综合分</th><th className="px-5 py-3">展会 / 时间</th><th className="px-5 py-3">地点 / 级别</th><th className="px-5 py-3">规模与成熟度</th><th className="px-5 py-3">WONLY 价值</th><th className="px-5 py-3">报名节点</th><th className="px-5 py-3">建议</th></tr></thead>
+                    <tbody>{items.map((item, index) => { const stats = getPreviousEditionStats(item); const recommendation = getExhibitionRecommendation(item, index); return <tr id={`exhibition-${item.id}`} key={item.id || item.exhibition} className="scroll-mt-24 border-b border-slate-50 align-top hover:bg-slate-50">
+                      <td className="min-w-32 px-5 py-4"><div className="text-lg font-bold text-slate-800">#{index + 1}</div><div className="mt-1 text-2xl font-bold text-brand-600">{item.comparisonScore}<span className="text-xs font-normal text-slate-400">/100</span></div></td>
+                      <td className="min-w-72 px-5 py-4"><a href={item.sourceUrl} target="_blank" rel="noreferrer" className="inline-flex items-start gap-1 font-semibold text-brand-600 hover:underline">{item.exhibition}<ExternalLink size={13} className="mt-0.5" /></a><div className="mt-1 text-xs text-slate-500">{item.eventDate}{item.eventDateEnd !== item.eventDate ? ` 至 ${item.eventDateEnd}` : ''}</div><div className="mt-2 flex flex-wrap gap-1">{item.categories?.map((category) => <Badge key={category} color="slate">{category}</Badge>)}</div></td>
+                      <td className="min-w-52 px-5 py-4"><div className="font-medium text-slate-700">{item.country} · {item.city}</div><div className="mt-1 text-xs text-slate-500">{item.venue}</div><div className="mt-2 flex gap-1"><Badge color={item.scopeLevel === '区域性' ? 'green' : 'blue'}>{item.scopeLevel}</Badge><Badge color={item.influenceTier === '全球旗舰' ? 'blue' : 'green'}>{item.influenceTier}</Badge></div></td>
+                      <td className="min-w-64 px-5 py-4"><div className="text-xs leading-5 text-slate-500">{item.scale}</div><div className="mt-2 grid grid-cols-2 gap-2 rounded-lg bg-slate-50 p-2 text-xs"><div><span className="text-slate-400">展商</span><div className="font-semibold text-slate-700">{stats.exhibitors}</div></div><div><span className="text-slate-400">观众</span><div className="font-semibold text-slate-700">{stats.visitors}</div></div></div><div className="mt-2"><Badge color={isFirstEdition(item) ? 'orange' : 'green'}>{isFirstEdition(item) ? '首届待验证' : '已有往届实绩'}</Badge></div></td>
+                      <td className="min-w-80 px-5 py-4 text-xs leading-5 text-slate-500"><Badge color={item.wonlyFit === '高' ? 'blue' : 'orange'}>WONLY {item.wonlyFit}适配</Badge><div className="mt-2"><span className="font-medium text-slate-700">核心受众：</span>{item.audience}</div><div className="mt-1"><span className="font-medium text-slate-700">价值：</span>{item.wonlyUse}</div></td>
+                      <td className="min-w-64 px-5 py-4 text-xs leading-5"><div className="rounded-lg bg-amber-50 px-3 py-2 text-amber-800">{item.registrationDeadline}</div>{item.registrationUrl && <a href={item.registrationUrl} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 font-medium text-brand-600 hover:underline">官方报名入口<ExternalLink size={11} /></a>}</td>
+                      <td className="min-w-52 px-5 py-4"><Badge color={recommendation.color}>{recommendation.label}</Badge><div className="mt-2 text-xs leading-5 text-slate-500">{recommendation.reason}</div></td>
+                    </tr>})}</tbody>
+                  </table>
+                </div>
+              </Card>)}
+            </div>}
+
+            {associationDashboardScope !== 'relationships' && (associationActivityScope !== 'exhibitions' || exhibitionDisplayMode === 'detailTable') && <Card className="w-full min-w-0 max-w-full overflow-hidden p-0">
               <div className="flex items-center justify-between gap-4 border-b border-slate-100 px-5 py-4">
                 <div><div className="font-semibold text-slate-800">{associationActivityScope === 'exhibitions' ? '竞品参展与展会决策看板' : '论坛、峰会、标准会议与展会活动'}</div><div className="mt-1 text-xs text-slate-400">{associationActivityScope === 'exhibitions' ? `已补充 2027–2028 建材与窗展会，区域性优先、国家性为辅；报名开放与截止时间以主办方公开信息为准 · 规划库核验 ${STRATEGIC_EXHIBITION_AUDIT_DATE}` : '按时间倒序；角色区分主办、演讲、赞助、参展、董事会和标准工作组。'}</div></div>
                 <div className="flex shrink-0 items-center gap-2">
@@ -790,6 +838,30 @@ function getCompetitorOrigin(profile) {
   return profile?.origin || '海外品牌'
 }
 
+function RegionComparisonChart({ region, items }) {
+  const maxScore = Math.max(...items.map((item) => item.comparisonScore), 100)
+  return <div className="border-b border-slate-100 bg-slate-50/40 px-5 py-5">
+    <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+      <div><div className="text-sm font-semibold text-slate-700">{region}优先级对比图</div><div className="mt-1 text-xs text-slate-400">条形长度为综合分；分项标签用于解释得分，不代表公开的第三方评级。</div></div>
+      <div className="flex flex-wrap gap-3 text-xs text-slate-500"><span className="inline-flex items-center gap-1"><i className="h-2.5 w-2.5 rounded-full bg-brand-500" />已有往届实绩</span><span className="inline-flex items-center gap-1"><i className="h-2.5 w-2.5 rounded-full bg-amber-400" />首届待验证</span></div>
+    </div>
+    <div className="space-y-3">{items.map((item, index) => {
+      const dimensions = getExhibitionComparisonDimensions(item)
+      const firstEdition = isFirstEdition(item)
+      return <button key={item.id || item.exhibition} type="button" onClick={() => document.getElementById(`exhibition-${item.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })} className="grid w-full gap-2 rounded-xl border border-transparent px-3 py-2 text-left transition hover:border-brand-200 hover:bg-white lg:grid-cols-[260px_minmax(320px,1fr)_390px] lg:items-center">
+        <div className="min-w-0"><div className="flex items-center gap-2"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white text-xs font-bold text-slate-500 shadow-sm">{index + 1}</span><span className="truncate text-sm font-semibold text-slate-700">{item.exhibition}</span></div><div className="ml-8 mt-0.5 text-xs text-slate-400">{item.country} · {item.city}</div></div>
+        <div className="flex items-center gap-3"><div className="h-5 flex-1 overflow-hidden rounded-full bg-slate-200"><div className={`flex h-full items-center justify-end rounded-full pr-2 text-[10px] font-bold text-white transition-all ${firstEdition ? 'bg-amber-400' : 'bg-brand-500'}`} style={{ width: `${Math.max(12, (item.comparisonScore / maxScore) * 100)}%` }}>{item.comparisonScore}</div></div><span className="w-12 text-right text-sm font-bold text-slate-700">{item.comparisonScore}</span></div>
+        <div className="grid grid-cols-4 gap-1 text-center text-[10px]"><DimensionPill label="影响力" value={dimensions.influence} max={28} /><DimensionPill label="适配" value={dimensions.fit} max={25} /><DimensionPill label="证据" value={dimensions.evidence} max={15} /><DimensionPill label="报名" value={dimensions.registration} max={12} /></div>
+      </button>
+    })}</div>
+  </div>
+}
+
+function DimensionPill({ label, value, max }) {
+  const strong = value / max >= 0.8
+  return <span className={`rounded-md px-1.5 py-1 ${strong ? 'bg-emerald-50 text-emerald-700' : 'bg-white text-slate-500'}`}>{label} {value}/{max}</span>
+}
+
 function countAssociationValues(records, key) {
   const counts = new Map()
   records.forEach((item) => {
@@ -866,12 +938,39 @@ function getPreviousEditionStats(item) {
   }
   const scale = String(item.scale || '')
   if (!scale || /预计|两届合计|历史覆盖/.test(scale)) return { exhibitors: '未公开', visitors: '未公开' }
-  const exhibitorMatch = scale.match(/([\d,]+\+?)\s*(?:家|个)?(?:企业\/品牌|企业与品牌|品牌\/展商|展商)/)
+  const exhibitorMatch = scale.match(/([\d,]+\+?)\s*(?:家|个)?(?:企业\/品牌|企业与品牌|品牌\/展商|展商|企业)/)
   const visitorMatch = scale.match(/([\d,]+\+?)\s*(?:名|位)?(?:专业人士|专业观众|观众|人次)/)
   return {
     exhibitors: exhibitorMatch ? `${exhibitorMatch[1]} 家` : '未公开',
     visitors: visitorMatch ? `${visitorMatch[1]} 人` : '未公开',
   }
+}
+
+function isFirstEdition(item) {
+  return item.maturity === '首届待验证' || /首届|inaugural/i.test(`${item.scale || ''} ${item.influenceBasis || ''}`)
+}
+
+function getExhibitionComparisonScore(item) {
+  const dimensions = getExhibitionComparisonDimensions(item)
+  return Math.min(100, Object.values(dimensions).reduce((total, value) => total + value, 0))
+}
+
+function getExhibitionComparisonDimensions(item) {
+  const influence = item.influenceTier === '全球旗舰' ? 28 : item.influenceTier === '区域核心' ? 23 : 17
+  const fit = item.wonlyFit === '高' ? 25 : item.wonlyFit === '中' ? 17 : 9
+  const registration = item.registrationState === '报名已开放' ? 12 : item.registrationState === '报名待开放' ? 8 : 5
+  const scope = item.priority === '区域优先' ? 10 : 7
+  const stats = getPreviousEditionStats(item)
+  const evidence = stats.exhibitors !== '未公开' || stats.visitors !== '未公开' ? 15 : isFirstEdition(item) ? 5 : 8
+  const maturity = isFirstEdition(item) ? 8 : 10
+  return { influence, fit, registration, scope, evidence, maturity }
+}
+
+function getExhibitionRecommendation(item, index) {
+  if (isFirstEdition(item)) return { label: '战略观察 / 首届试投', color: 'orange', reason: '国际品牌和区域机会较强，但没有往届实绩；优先争取小展位、演讲或渠道会面，并设置线索成本上限。' }
+  if (index === 0 && item.wonlyFit === '高') return { label: '区域首选', color: 'green', reason: '在当前区域和筛选条件下综合得分最高，建议优先锁定展位、报名窗口和当地渠道邀约。' }
+  if (item.wonlyFit === '高') return { label: '重点备选', color: 'blue', reason: '品类及受众匹配度高，可与区域首选形成不同国家、季度或渠道层级的组合。' }
+  return { label: '考察 / 联合参展', color: 'slate', reason: '具备行业价值，但与门和智能入口的直接匹配有限，优先采用观展、协会合作或联合展位。' }
 }
 
 function downloadExcelXml(sheets, fileName) {

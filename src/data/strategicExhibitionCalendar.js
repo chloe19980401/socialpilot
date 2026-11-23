@@ -32,6 +32,15 @@ export const STRATEGIC_EXHIBITION_CALENDAR = [
     registrationStatus: '展位申请与专业观众登记已开放 · 截止日期未公布', registrationState: '报名已开放', registrationUrl: 'https://uzbuild.uz/en/stand-reservation',
   }),
   plannedExhibition({
+    id: 'plan-big5-uzbekistan-2027', exhibition: 'Big 5 Construct Uzbekistan 2027', aliases: ['乌兹别克斯坦五大行业展'], eventDate: '2027-10-27', eventDateEnd: '2027-10-29', country: '乌兹别克斯坦', city: '塔什干', venue: 'CAEx', region: '中亚',
+    organizer: 'dmg events', categories: ['建材', '窗', '门', '智能建筑'], scopeLevel: '区域性', influenceTier: '区域核心',
+    influenceBasis: 'dmg events 于 2027 年首次在乌兹别克斯坦举办 Big 5 Construct，并与 INDEX Uzbekistan 同期连接中亚建筑及室内采购；首届潜力高，但尚无真实往届实绩。', audience: '开发商、承包商、建筑师、工程顾问、建材经销商、政府及项目采购',
+    wonlyFit: '高', wonlyUse: '适合中亚工程门、智能入口、建材渠道及 Big 5 国际采购生态拓展。', scale: '2027 首届；暂无上一届真实展商与观众数据',
+    sourceUrl: 'https://www.dmgevents.com/media-pr/2026/october/dmg-events-brings-big-5-construct-and-index-to-uzbekistan-expanding-international-construction-and-interiors-connections-in-central-asia/', venueDetail: 'CAEx · 与 INDEX Uzbekistan 同期', dateStatus: '日期已公布', priority: '区域优先',
+    registrationStatus: '首届展会已官宣 · 展位申请及观众登记截止时间待主办方公布', registrationState: '报名时间待公布', registrationUrl: 'https://www.dmgevents.com/media-pr/2026/october/dmg-events-brings-big-5-construct-and-index-to-uzbekistan-expanding-international-construction-and-interiors-connections-in-central-asia/',
+    maturity: '首届待验证',
+  }),
+  plannedExhibition({
     id: 'plan-mosbuild-2027', exhibition: 'MosBuild 2027', aliases: ['莫斯科国际建材展'], eventDate: '2027-03-30', eventDateEnd: '2027-04-02', country: '俄罗斯', city: '莫斯科', venue: 'Crocus Expo', region: '东欧 / 独联体',
     organizer: 'ITE Group', categories: ['建材', '窗', '门', '智能建筑'], scopeLevel: '区域性', influenceTier: '区域核心',
     influenceBasis: '覆盖俄罗斯及独联体市场的综合建材展，官方披露 1,300+ 展商、70,000+ 观众。', audience: '分销商、开发商、承包商、建筑师、门窗与锁具采购',
@@ -191,6 +200,7 @@ export const STRATEGIC_EXHIBITION_CALENDAR = [
     sourceUrl: 'https://www.windowsdoorsandfacadeevent.com/visit/', venueDetail: 'Dubai Exhibition Centre', dateStatus: '日期已公布', priority: '区域优先',
     registrationStatus: '观众门票尚未开放 · 可登记开票提醒', registrationState: '报名待开放', registrationUrl: 'https://www.windowsdoorsandfacadeevent.com/visit/',
   }),
+  ...additional2027RegionalExhibitions().map(plannedExhibition),
   plannedExhibition({
     id: 'plan-polyclose-2028', exhibition: 'Polyclose 2028', eventDate: '2028-01-19', eventDateEnd: '2028-01-21', country: '比利时', city: '根特', venue: 'Flanders Expo', region: '欧洲',
     organizer: 'Polyclose', categories: ['窗', '门', '幕墙', '建材'], scopeLevel: '区域性', influenceTier: '区域核心',
@@ -259,6 +269,45 @@ export const STRATEGIC_EXHIBITION_CALENDAR = [
     registrationStatus: '展商申请入口已开放 · 观众票务与截止时间待公布', registrationState: '报名已开放', registrationUrl: 'https://www.batimat.com/en-gb/the-show/equipbaie.html',
   }),
 ]
+
+function additional2027RegionalExhibitions() { return [
+  {
+    id: 'plan-kyrgyzbuild-2027', exhibition: 'KyrgyzBuild 2027', aliases: ['吉尔吉斯斯坦国际建筑展'], eventDate: '2027-04-13', eventDateEnd: '2027-04-15', country: '吉尔吉斯斯坦', city: '比什凯克', venue: 'Jashtyk Arena / KSAFKiS Arena', region: '中亚', organizer: 'BiExpo',
+    categories: ['建材', '窗', '门', '幕墙', '安防'], scopeLevel: '区域性', influenceTier: '区域核心', influenceBasis: '第 24 届中亚建筑专业展，官方设有门、窗、幕墙、屋顶、门禁和安防板块。', audience: '承包商、开发商、建材经销商、门窗企业、工程师与政府项目方', wonlyFit: '高', wonlyUse: '适合测试中亚二级市场代理商、工程门及建筑五金渠道。', scale: '126+ 参展企业；4,465+ 观众；10+ 国家', sourceUrl: 'https://kyrgyzbuild.kg/en', venueDetail: 'Bishkek · 两个专业场馆', dateStatus: '日期已公布', priority: '区域优先', registrationStatus: '观众预登记已开放 · 展商可联系销售团队 · 截止日期未公布', registrationState: '报名已开放', registrationUrl: 'https://kyrgyzbuild.kg/en/visitors',
+  },
+  {
+    id: 'plan-big5-ethiopia-2027', exhibition: 'Big 5 Construct Ethiopia 2027', eventDate: '2027-04-08', eventDateEnd: '2027-04-10', country: '埃塞俄比亚', city: '亚的斯亚贝巴', venue: 'Addis International Convention Centre (AICC)', region: '东非', organizer: 'dmg events',
+    categories: ['建材', '窗', '门', '智能建筑'], scopeLevel: '区域性', influenceTier: '区域核心', influenceBasis: 'Big 5 东非项目采购平台，连接政府、承包商、开发商和国际供应商。', audience: '政府、承包商、开发商、建筑师、工程顾问、经销商与采购负责人', wonlyFit: '高', wonlyUse: '适合东非工程门、经销网络与大型建设项目合作。', scale: '历史公开样本 160+ 展商、22 个国家', sourceUrl: 'https://www.big5constructethiopia.com/training/', venueDetail: 'AICC', dateStatus: '日期已公布', priority: '区域优先', registrationStatus: '展位预订及专业观众登记入口已开放', registrationState: '报名已开放', registrationUrl: 'https://www.big5constructethiopia.com/',
+  },
+  {
+    id: 'plan-big5-egypt-2027', exhibition: 'Big 5 Construct Egypt 2027', eventDate: '2027-06-14', eventDateEnd: '2027-06-16', country: '埃及', city: '开罗', venue: 'Egypt International Exhibition Center (EIEC)', region: '北非 / 中东', organizer: 'dmg events',
+    categories: ['建材', '窗', '门', '幕墙', '智能建筑'], scopeLevel: '区域性', influenceTier: '区域核心', influenceBasis: '连接埃及、北非及中东建设项目的 Big 5 区域展。', audience: '承包商、开发商、政府、顾问、分销商、建筑师与项目采购', wonlyFit: '高', wonlyUse: '适合北非工程门、智能入口及建材渠道拓展。', scale: '350+ 参展品牌；20+ 国家；20,000㎡', sourceUrl: 'https://www.big5constructegypt.com/landing-page/big-5-construct-egypt-exprom-2027/', venueDetail: 'EIEC', dateStatus: '日期已公布', priority: '区域优先', registrationStatus: '展位预订已开放 · 观众可登记开票提醒', registrationState: '报名已开放', registrationUrl: 'https://www.big5constructegypt.com/landing-page/big-5-construct-egypt-exprom-2027/',
+  },
+  {
+    id: 'plan-kazbuild-2027', exhibition: 'KazBuild 2027', aliases: ['哈萨克斯坦国际建筑与室内展'], eventDate: '2027-09-07', eventDateEnd: '2027-09-09', country: '哈萨克斯坦', city: '阿拉木图', venue: 'Atakent IEC', region: '中亚', organizer: 'Iteca Exhibitions',
+    categories: ['建材', '窗', '门', '幕墙', '智能建筑'], scopeLevel: '区域性', influenceTier: '区域核心', influenceBasis: '始于 1994 年的哈萨克斯坦大型建筑与室内展，覆盖中亚经销、工程和设计采购。', audience: '开发商、承包商、建筑师、室内设计师、建材与门窗经销商、政府采购', wonlyFit: '高', wonlyUse: '适合哈萨克斯坦及中亚工程门、门窗、五金和区域代理拓展。', scale: '第 33 届；60+ 场商业活动；UFI 审计展会', sourceUrl: 'https://kazbuild.kz/en/exhibition/about-the-exhibition', venueDetail: 'Atakent IEC', dateStatus: '日期已公布', priority: '区域优先', registrationStatus: '展位预订已开放 · 观众开放时间已公布', registrationState: '报名已开放', registrationUrl: 'https://kazbuild.kz/en/exhibition/about-the-exhibition',
+  },
+  {
+    id: 'plan-construction-indonesia-2027', exhibition: 'Construction Indonesia 2027', eventDate: '2027-09-15', eventDateEnd: '2027-09-18', country: '印度尼西亚', city: '雅加达', venue: 'Jakarta International Expo (JIEXPO)', region: '东南亚', organizer: 'PT Pamerindo Indonesia / Informa Markets',
+    categories: ['建材', '智能建筑'], scopeLevel: '国家性', influenceTier: '区域核心', influenceBasis: '第 27 届印尼建筑结构、建造技术、工程采购与设备展，与 Concrete Show SEA 等同期。', audience: '承包商、开发商、工程采购、建筑师、政府、经销商与设备供应商', wonlyFit: '中', wonlyUse: '适合印尼工程项目和建筑渠道合作，门窗垂直度低于专业门窗展。', scale: '第 27 届；多展同期的印尼建筑产业平台', sourceUrl: 'https://www.constructionindo.com/about/about-the-show/', venueDetail: 'JIEXPO Kemayoran', dateStatus: '日期已公布', priority: '国家性补充', registrationStatus: '展商与观众联系入口已开放 · 截止日期未公布', registrationState: '报名已开放', registrationUrl: 'https://www.constructionindo.com/about/about-the-show/',
+  },
+  {
+    id: 'plan-big5-nigeria-2027', exhibition: 'Big 5 Construct Nigeria 2027', eventDate: '2027-09-21', eventDateEnd: '2027-09-23', country: '尼日利亚', city: '拉各斯', venue: 'Landmark Centre', region: '西非', organizer: 'dmg events',
+    categories: ['建材', '窗', '门', '智能建筑'], scopeLevel: '区域性', influenceTier: '区域核心', influenceBasis: 'Big 5 西非建筑采购平台，覆盖尼日利亚及周边增长型建材与项目市场。', audience: '经销商、承包商、开发商、建筑师、政府、项目采购与国际供应商', wonlyFit: '高', wonlyUse: '适合西非工程门、安防门、经销代理和项目合作。', scale: '150+ 国际及本地供应商', sourceUrl: 'https://www.big5constructnigeria.com/product-information/', venueDetail: 'Landmark Centre', dateStatus: '日期已公布', priority: '区域优先', registrationStatus: '展位预订已开放 · 观众登记以官网为准', registrationState: '报名已开放', registrationUrl: 'https://www.big5constructnigeria.com/',
+  },
+  {
+    id: 'plan-vibe-2027', exhibition: 'VIBE 2027', aliases: ['Vietnam Interior & Build Expo', '越南室内与建造展'], eventDate: '2027-10-06', eventDateEnd: '2027-10-09', country: '越南', city: '胡志明市', venue: 'SECC', region: '东南亚', organizer: 'SACA',
+    categories: ['建材', '窗', '门', '智能建筑'], scopeLevel: '区域性', influenceTier: '区域核心', influenceBasis: '胡志明市建筑与建材协会体系推动的年度室内与建造展。', audience: '建筑与建材企业、室内设计、开发商、承包商、经销商和项目采购', wonlyFit: '高', wonlyUse: '适合越南南部经销商、工程门、智能锁及门墙一体化合作。', scale: '预计近 300 家企业、650+ 展位、近 20,000 人次', sourceUrl: 'https://saca.com.vn/vnt_upload/news/11_2026/SACA_BY_tai_trY_nYm_2027.pdf', venueDetail: 'Saigon Exhibition and Convention Center', dateStatus: '日期已公布', priority: '区域优先', registrationStatus: '2027 赞助与合作方案已发布 · 展位及观众截止日期待公布', registrationState: '报名时间待公布', registrationUrl: 'https://saca.com.vn/vnt_upload/news/11_2026/SACA_BY_tai_trY_nYm_2027.pdf',
+  },
+  {
+    id: 'plan-bakubuild-2027', exhibition: 'BakuBuild 2027', aliases: ['阿塞拜疆国际建筑展', 'Caspian Construction Week'], eventDate: '2027-10-12', eventDateEnd: '2027-10-14', country: '阿塞拜疆', city: '巴库', venue: 'Baku Expo Center', region: '高加索 / 中亚门户', organizer: 'Caspian Event Organisers',
+    categories: ['建材', '窗', '门', '智能建筑'], scopeLevel: '区域性', influenceTier: '区域核心', influenceBasis: '第 32 届阿塞拜疆国际建筑展，是里海与高加索建设项目、分销和政府采购平台。', audience: '开发商、承包商、政府、建筑师、经销商、工程与项目采购', wonlyFit: '高', wonlyUse: '适合连接高加索、里海和中亚西部门户的工程门及渠道伙伴。', scale: '第 32 届；与 Caspian Construction Week 同期', sourceUrl: 'https://bakubuild.az/en/register-as-professional', venueDetail: 'Baku Expo Center', dateStatus: '日期已公布', priority: '区域优先', registrationStatus: '专业观众预登记已开放 · B2B/B2G 会议登记可用', registrationState: '报名已开放', registrationUrl: 'https://bakubuild.az/en/register-as-professional',
+  },
+  {
+    id: 'plan-big5-kenya-2027', exhibition: 'Big 5 Construct Kenya 2027', eventDate: '2027-10-13', eventDateEnd: '2027-10-15', country: '肯尼亚', city: '内罗毕', venue: 'Sarit Expo Centre', region: '东非', organizer: 'dmg events',
+    categories: ['建材', '窗', '门', '智能建筑'], scopeLevel: '区域性', influenceTier: '区域核心', influenceBasis: 'Big 5 东非建筑专业展，覆盖肯尼亚及东非承包、设计、工程和分销采购。', audience: '承包商、开发商、建筑师、工程师、项目管理、经销商和政府', wonlyFit: '高', wonlyUse: '适合东非项目门、经销代理、安防入口及大型项目线索。', scale: '三日东非建筑专业展；2026 展商名单已公开', sourceUrl: 'https://www.big5constructkenya.com/agenda/', venueDetail: 'Sarit Expo Centre', dateStatus: '日期已公布', priority: '区域优先', registrationStatus: '展位预订已开放 · 观众可登记开票提醒', registrationState: '报名已开放', registrationUrl: 'https://www.big5constructkenya.com/',
+  },
+] }
 
 function plannedExhibition(item) {
   const registrationState = item.registrationState || (item.registrationStatus?.includes('已开放') ? '报名已开放' : item.registrationStatus?.includes('尚未开放') ? '报名待开放' : '报名时间待公布')
