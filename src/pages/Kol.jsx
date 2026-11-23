@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Star, Users, Globe, Plus, CheckCircle2, Clock, Gift, Newspaper, Search, ExternalLink, ShieldCheck, Languages, BarChart3, FileSearch, Video, Pencil, Upload, FileText, Trash2, Building2, Handshake, CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Star, Users, Globe, Plus, CheckCircle2, Clock, Gift, Newspaper, Search, ExternalLink, ShieldCheck, Languages, BarChart3, FileSearch, Video, Pencil, Upload, FileText, Trash2, Building2, Handshake, CalendarDays, ChevronLeft, ChevronRight, Download } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { Card, StatCard } from '../components/ui/Card'
 import PageHeader from '../components/ui/PageHeader'
@@ -258,6 +258,17 @@ export default function Kol() {
     .filter((item) => associationOrganizationFilter === 'all' || item.association === associationOrganizationFilter), 'competitor'), [associationOrganizationFilter, associationSummaryRecords])
   const associationOrganizationOptions = useMemo(() => countAssociationValues(associationSummaryRecords
     .filter((item) => competitorFilter === 'all' || item.competitor === competitorFilter), 'association'), [associationSummaryRecords, competitorFilter])
+
+  function exportFilteredExhibitions() {
+    if (!filteredAssociationEvents.length || associationActivityScope !== 'exhibitions') return
+    const rows = filteredAssociationEvents.map(toExhibitionExportRow)
+    const regionalSheets = [...new Set(rows.map((row) => row['大区']))]
+      .map((region) => ({ name: region, rows: rows.filter((row) => row['大区'] === region) }))
+    downloadExcelXml([
+      { name: '当前筛选', rows },
+      ...regionalSheets,
+    ], `展会信息_当前筛选_${new Date().toISOString().slice(0, 10)}.xls`)
+  }
 
   return (
     <div>
@@ -539,6 +550,7 @@ export default function Kol() {
               <div className="flex items-center justify-between gap-4 border-b border-slate-100 px-5 py-4">
                 <div><div className="font-semibold text-slate-800">{associationActivityScope === 'exhibitions' ? '竞品参展与展会决策看板' : '论坛、峰会、标准会议与展会活动'}</div><div className="mt-1 text-xs text-slate-400">{associationActivityScope === 'exhibitions' ? `已补充 2027–2028 建材与窗展会，区域性优先、国家性为辅；报名开放与截止时间以主办方公开信息为准 · 规划库核验 ${STRATEGIC_EXHIBITION_AUDIT_DATE}` : '按时间倒序；角色区分主办、演讲、赞助、参展、董事会和标准工作组。'}</div></div>
                 <div className="flex shrink-0 items-center gap-2">
+                  {associationActivityScope === 'exhibitions' && <button type="button" onClick={exportFilteredExhibitions} disabled={!filteredAssociationEvents.length} className="inline-flex items-center gap-2 rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-sm font-medium text-brand-700 hover:border-brand-300 hover:bg-brand-100 disabled:cursor-not-allowed disabled:opacity-40"><Download size={16} />导出 Excel</button>}
                   <span className="hidden text-xs text-slate-400 sm:inline">左右查看</span>
                   <button type="button" aria-label="向左滚动展会表格" onClick={() => exhibitionScrollRef.current?.scrollBy({ left: -640, behavior: 'smooth' })} className="rounded-lg border border-slate-200 bg-white p-2 text-slate-600 hover:border-brand-300 hover:text-brand-600"><ChevronLeft size={18} /></button>
                   <button type="button" aria-label="向右滚动展会表格" onClick={() => exhibitionScrollRef.current?.scrollBy({ left: 640, behavior: 'smooth' })} className="rounded-lg border border-slate-200 bg-white p-2 text-slate-600 hover:border-brand-300 hover:text-brand-600"><ChevronRight size={18} /></button>
@@ -792,6 +804,102 @@ function countAssociationValues(records, key) {
 function formatMetric(value) {
   if (value === null || value === undefined) return '未公开'
   return new Intl.NumberFormat('zh-CN', { notation: 'compact', maximumFractionDigits: 1 }).format(value)
+}
+
+function toExhibitionExportRow(item) {
+  return {
+    '大区': getExhibitionMajorRegion(item),
+    '展会地区': item.region || '',
+    '展会名称': item.exhibition || item.eventName || '',
+    '开始日期': formatExportDate(item.eventDate),
+    '结束日期': formatExportDate(item.eventDateEnd || item.eventDate),
+    '国家': item.country || '',
+    '城市': item.city || '',
+    '场馆': item.venue || '',
+    '展位 / 场馆详情': item.venueDetail || '',
+    '主办方 / 协会': item.association || '',
+    '行业标签': (item.categories || []).join('、'),
+    '展会级别': item.scopeLevel || '',
+    '行业影响力': item.influenceTier || '',
+    '影响力依据': item.influenceBasis || '',
+    '核心受众': item.audience || '',
+    '市场类型': item.exhibitionMarket || '',
+    'WONLY 适配度': item.wonlyFit || '',
+    'WONLY 机会': item.wonlyUse || '',
+    '规模': item.scale || '',
+    '竞品': item.isPlanningRecord ? 'WONLY 目标展会' : (item.competitor || ''),
+    '参与性质': item.exhibitionRelation || item.role || '',
+    '参与说明': item.evidence || '',
+    '报名阶段': item.registrationState || '',
+    '报名时间 / 状态': item.registrationDeadline || '',
+    '报名入口': item.registrationUrl || '',
+    '预计费用': item.estimatedCost || '',
+    '官方来源': item.sourceUrl || '',
+    '展会画像来源': item.profileSourceUrl || '',
+  }
+}
+
+function getExhibitionMajorRegion(item) {
+  const text = `${item.region || ''} ${item.country || ''} ${item.city || ''}`
+  if (/中东|沙特|阿联酋|迪拜|利雅得|卡塔尔|土耳其/.test(text)) return '中东'
+  if (/中亚|哈萨克|乌兹别克|吉尔吉斯|塔吉克|土库曼/.test(text)) return '中亚'
+  if (/欧洲|欧亚|德国|法国|意大利|英国|瑞士|荷兰|比利时|西班牙|斯洛文尼亚|俄罗斯|芬兰|瑞典|挪威|丹麦/.test(text)) return '欧洲'
+  if (/北美|美国|加拿大|墨西哥/.test(text)) return '北美'
+  if (/非洲|南非|埃及|肯尼亚|尼日利亚|摩洛哥/.test(text)) return '非洲'
+  if (/拉美|南美|巴西|阿根廷|智利|哥伦比亚|秘鲁/.test(text)) return '拉美'
+  if (/亚太|东南亚|亚洲|中国|香港|菲律宾|泰国|马来西亚|新加坡|印度尼西亚|澳大利亚|新西兰|日本|韩国/.test(text)) return '亚太'
+  return '全球与其他'
+}
+
+function formatExportDate(value) {
+  return value ? String(value).slice(0, 10) : ''
+}
+
+function downloadExcelXml(sheets, fileName) {
+  const headers = Object.keys(sheets[0]?.rows[0] || {})
+  if (!headers.length) return
+  const columns = headers.map((header) => `<Column ss:Width="${getExcelColumnWidth(header)}"/>`).join('')
+  const worksheetXml = sheets.map(({ name, rows }) => `
+    <Worksheet ss:Name="${escapeExcelXml(name.slice(0, 31))}">
+      <Table>${columns}
+        <Row ss:StyleID="Header">${headers.map((header) => excelCell(header, 'Header')).join('')}</Row>
+        ${rows.map((row) => `<Row>${headers.map((header) => excelCell(row[header])).join('')}</Row>`).join('')}
+      </Table>
+      <WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel"><FreezePanes/><FrozenNoSplit/><SplitHorizontal>1</SplitHorizontal><TopRowBottomPane>1</TopRowBottomPane><ActivePane>2</ActivePane><ProtectObjects>False</ProtectObjects><ProtectScenarios>False</ProtectScenarios></WorksheetOptions>
+    </Worksheet>`).join('')
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet" xmlns:html="http://www.w3.org/TR/REC-html40">
+  <Styles>
+    <Style ss:ID="Default" ss:Name="Normal"><Alignment ss:Vertical="Top" ss:WrapText="1"/><Font ss:FontName="Arial" ss:Size="10"/></Style>
+    <Style ss:ID="Header"><Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/><Font ss:FontName="Arial" ss:Size="10" ss:Bold="1"/><Interior ss:Color="#DCE6F1" ss:Pattern="Solid"/></Style>
+  </Styles>${worksheetXml}
+</Workbook>`
+  const blob = new Blob([`\ufeff${xml}`], { type: 'application/vnd.ms-excel;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = fileName
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
+function excelCell(value, styleId = '') {
+  return `<Cell${styleId ? ` ss:StyleID="${styleId}"` : ''}><Data ss:Type="String">${escapeExcelXml(value)}</Data></Cell>`
+}
+
+function escapeExcelXml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' })[character])
+}
+
+function getExcelColumnWidth(header) {
+  if (/来源|入口/.test(header)) return 220
+  if (/依据|受众|机会|说明/.test(header)) return 260
+  if (/名称|场馆|主办方/.test(header)) return 180
+  if (/日期/.test(header)) return 90
+  return 110
 }
 
 const CONTACT_STATUSES = {
