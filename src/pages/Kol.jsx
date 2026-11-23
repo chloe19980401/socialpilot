@@ -563,7 +563,7 @@ export default function Kol() {
                   <td className="min-w-72 px-5 py-4"><a href={item.sourceUrl} target="_blank" rel="noreferrer" className="inline-flex items-start gap-1 font-semibold text-brand-600 hover:underline">{associationActivityScope === 'exhibitions' ? item.exhibition : item.eventName}<ExternalLink size={13} className="mt-0.5 shrink-0" /></a><div className="mt-1 text-xs text-slate-500">{associationActivityScope === 'exhibitions' && item.eventDateEnd !== item.eventDate ? `${item.eventDate} 至 ${item.eventDateEnd}` : item.eventDate}</div>{associationActivityScope === 'exhibitions' && <><div className="mt-2 flex flex-wrap gap-1">{item.scopeLevel && <Badge color={item.scopeLevel === '区域性' ? 'green' : 'blue'}>{item.scopeLevel}</Badge>}{item.priority && <Badge color="orange">{item.priority}</Badge>}{item.categories?.map((category) => <Badge key={category} color="slate">{category}</Badge>)}</div><div className="mt-2 text-xs font-medium text-slate-700">{item.venueDetail}</div></>}</td>
                   {associationActivityScope === 'exhibitions' && <>
                     <td className="min-w-56 px-5 py-4"><div className="font-medium text-slate-700">{item.country} · {item.city}</div><div className="mt-1 text-xs leading-5 text-slate-500">{item.venue}</div><Badge color="blue">{item.region}</Badge></td>
-                    <td className="min-w-80 max-w-[360px] px-5 py-4"><Badge color={item.influenceTier === '全球旗舰' ? 'blue' : item.influenceTier === '区域核心' ? 'green' : 'orange'}>{item.influenceTier}</Badge><div className="mt-2 text-xs leading-5 text-slate-500">{item.influenceBasis}</div><div className="mt-2 text-xs font-medium text-slate-700">规模：{item.scale}</div><a href={item.profileSourceUrl} target="_blank" rel="noreferrer" className="mt-1 inline-flex items-center gap-1 text-xs text-brand-600 hover:underline">展会画像来源<ExternalLink size={11} /></a></td>
+                    <td className="min-w-80 max-w-[360px] px-5 py-4"><Badge color={item.influenceTier === '全球旗舰' ? 'blue' : item.influenceTier === '区域核心' ? 'green' : 'orange'}>{item.influenceTier}</Badge><div className="mt-2 text-xs leading-5 text-slate-500">{item.influenceBasis}</div><div className="mt-2 text-xs font-medium text-slate-700">规模：{item.scale}</div><div className="mt-2 grid grid-cols-2 gap-2 rounded-lg bg-slate-50 p-2 text-xs"><div><div className="text-slate-400">上一届展商</div><div className="mt-0.5 font-semibold text-slate-700">{getPreviousEditionStats(item).exhibitors}</div></div><div><div className="text-slate-400">上一届观展人数</div><div className="mt-0.5 font-semibold text-slate-700">{getPreviousEditionStats(item).visitors}</div></div></div><a href={item.profileSourceUrl} target="_blank" rel="noreferrer" className="mt-1 inline-flex items-center gap-1 text-xs text-brand-600 hover:underline">展会画像来源<ExternalLink size={11} /></a></td>
                   </>}
                   <td className="min-w-64 px-5 py-4"><div className="font-semibold text-slate-700">{item.isPlanningRecord ? 'WONLY 目标展会' : item.competitor}</div><div className="mt-1 text-xs text-slate-500">{item.association}</div>{item.isPlanningRecord ? <div className="mt-2"><Badge color="orange">尚未核验竞品参展</Badge></div> : <div className="mt-2 flex flex-wrap gap-1"><Badge color="green">{competitorProfileMap.get(item.competitor)?.market}</Badge><Badge color={getCompetitorOrigin(competitorProfileMap.get(item.competitor)) === '中国出海' ? 'orange' : 'slate'}>{getCompetitorOrigin(competitorProfileMap.get(item.competitor))}</Badge>{competitorProfileMap.get(item.competitor)?.categories.map((category) => <Badge key={category} color="blue">{category}</Badge>)}</div>}</td>
                   <td className="min-w-52 px-5 py-4">{associationActivityScope === 'exhibitions' ? <Badge color={item.exhibitionRelation === '确认参展' ? 'green' : item.exhibitionRelation === '展区赞助' ? 'blue' : 'orange'}>{item.exhibitionRelation}</Badge> : <><Badge>{item.eventType}</Badge><div className="mt-2"><Badge color={item.role === '赞助' ? 'green' : item.role === '主办 / 圆桌' ? 'blue' : 'orange'}>{item.role}</Badge></div></>}</td>
@@ -827,6 +827,8 @@ function toExhibitionExportRow(item) {
     'WONLY 适配度': item.wonlyFit || '',
     'WONLY 机会': item.wonlyUse || '',
     '规模': item.scale || '',
+    '上一届展商数': getPreviousEditionStats(item).exhibitors,
+    '上一届观展人数': getPreviousEditionStats(item).visitors,
     '竞品': item.isPlanningRecord ? 'WONLY 目标展会' : (item.competitor || ''),
     '参与性质': item.exhibitionRelation || item.role || '',
     '参与说明': item.evidence || '',
@@ -853,6 +855,23 @@ function getExhibitionMajorRegion(item) {
 
 function formatExportDate(value) {
   return value ? String(value).slice(0, 10) : ''
+}
+
+function getPreviousEditionStats(item) {
+  if (item.previousEditionExhibitors || item.previousEditionVisitors) {
+    return {
+      exhibitors: item.previousEditionExhibitors || '未公开',
+      visitors: item.previousEditionVisitors || '未公开',
+    }
+  }
+  const scale = String(item.scale || '')
+  if (!scale || /预计|两届合计|历史覆盖/.test(scale)) return { exhibitors: '未公开', visitors: '未公开' }
+  const exhibitorMatch = scale.match(/([\d,]+\+?)\s*(?:家|个)?(?:企业\/品牌|企业与品牌|品牌\/展商|展商)/)
+  const visitorMatch = scale.match(/([\d,]+\+?)\s*(?:名|位)?(?:专业人士|专业观众|观众|人次)/)
+  return {
+    exhibitors: exhibitorMatch ? `${exhibitorMatch[1]} 家` : '未公开',
+    visitors: visitorMatch ? `${visitorMatch[1]} 人` : '未公开',
+  }
 }
 
 function downloadExcelXml(sheets, fileName) {
