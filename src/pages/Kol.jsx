@@ -843,7 +843,7 @@ function RegionComparisonChart({ region, items }) {
   return <div className="border-b border-slate-100 bg-slate-50/40 px-5 py-5">
     <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
       <div><div className="text-sm font-semibold text-slate-700">{region}优先级对比图</div><div className="mt-1 text-xs text-slate-400">条形长度为综合分；分项标签用于解释得分，不代表公开的第三方评级。</div></div>
-      <div className="flex flex-wrap gap-3 text-xs text-slate-500"><span className="inline-flex items-center gap-1"><i className="h-2.5 w-2.5 rounded-full bg-brand-500" />已有往届实绩</span><span className="inline-flex items-center gap-1"><i className="h-2.5 w-2.5 rounded-full bg-amber-400" />首届待验证</span></div>
+      <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500"><span className="inline-flex items-center gap-1"><i className="h-2.5 w-2.5 rounded-full bg-brand-500" />已有往届实绩</span><span className="inline-flex items-center gap-1"><i className="h-2.5 w-2.5 rounded-full bg-amber-400" />首届待验证</span><button type="button" onClick={() => exportRegionComparisonPng(region, items)} className="inline-flex items-center gap-1 rounded-lg border border-brand-200 bg-white px-2.5 py-1.5 font-medium text-brand-700 hover:bg-brand-50"><Download size={13} />单独导出 PNG</button></div>
     </div>
     <div className="space-y-3">{items.map((item, index) => {
       const dimensions = getExhibitionComparisonDimensions(item)
@@ -860,6 +860,80 @@ function RegionComparisonChart({ region, items }) {
 function DimensionPill({ label, value, max }) {
   const strong = value / max >= 0.8
   return <span className={`rounded-md px-1.5 py-1 ${strong ? 'bg-emerald-50 text-emerald-700' : 'bg-white text-slate-500'}`}>{label} {value}/{max}</span>
+}
+
+function exportRegionComparisonPng(region, items) {
+  const width = 1600
+  const rowHeight = 112
+  const headerHeight = 170
+  const footerHeight = 74
+  const height = headerHeight + items.length * rowHeight + footerHeight
+  const scale = 2
+  const canvas = document.createElement('canvas')
+  canvas.width = width * scale
+  canvas.height = height * scale
+  const ctx = canvas.getContext('2d')
+  ctx.scale(scale, scale)
+  ctx.fillStyle = '#f8fafc'
+  ctx.fillRect(0, 0, width, height)
+  ctx.fillStyle = '#ffffff'
+  roundCanvasRect(ctx, 34, 30, width - 68, height - 60, 24)
+  ctx.fill()
+  ctx.fillStyle = '#0f172a'
+  ctx.font = '700 34px "PingFang SC", "Microsoft YaHei", sans-serif'
+  ctx.fillText(`${region}展会综合对比`, 78, 88)
+  ctx.fillStyle = '#64748b'
+  ctx.font = '18px "PingFang SC", "Microsoft YaHei", sans-serif'
+  ctx.fillText('统一比较行业影响力、WONLY适配度、历史证据、报名可执行性与展会成熟度', 78, 124)
+  drawCanvasLegend(ctx, 1180, 83, '#3b82f6', '已有往届实绩')
+  drawCanvasLegend(ctx, 1380, 83, '#f59e0b', '首届待验证')
+
+  items.forEach((item, index) => {
+    const y = headerHeight + index * rowHeight
+    const dimensions = getExhibitionComparisonDimensions(item)
+    const firstEdition = isFirstEdition(item)
+    if (index > 0) { ctx.strokeStyle = '#e2e8f0'; ctx.beginPath(); ctx.moveTo(78, y); ctx.lineTo(width - 78, y); ctx.stroke() }
+    ctx.fillStyle = '#e2e8f0'; ctx.beginPath(); ctx.arc(98, y + 46, 22, 0, Math.PI * 2); ctx.fill()
+    ctx.fillStyle = '#475569'; ctx.font = '700 16px sans-serif'; ctx.textAlign = 'center'; ctx.fillText(String(index + 1), 98, y + 52); ctx.textAlign = 'left'
+    ctx.fillStyle = '#1e293b'; ctx.font = '700 20px "PingFang SC", "Microsoft YaHei", sans-serif'; ctx.fillText(truncateCanvasText(ctx, item.exhibition, 390), 140, y + 38)
+    ctx.fillStyle = '#64748b'; ctx.font = '15px "PingFang SC", "Microsoft YaHei", sans-serif'; ctx.fillText(`${item.country} · ${item.city}  |  ${item.eventDate}—${item.eventDateEnd}`, 140, y + 68)
+    const barX = 565; const barY = y + 28; const barWidth = 470; const barHeight = 30
+    ctx.fillStyle = '#e2e8f0'; roundCanvasRect(ctx, barX, barY, barWidth, barHeight, 15); ctx.fill()
+    ctx.fillStyle = firstEdition ? '#f59e0b' : '#3b82f6'; roundCanvasRect(ctx, barX, barY, Math.max(60, barWidth * item.comparisonScore / 100), barHeight, 15); ctx.fill()
+    ctx.fillStyle = '#0f172a'; ctx.font = '700 24px sans-serif'; ctx.fillText(`${item.comparisonScore}/100`, 1055, y + 52)
+    const pills = [['影响力', dimensions.influence, 28], ['适配', dimensions.fit, 25], ['证据', dimensions.evidence, 15], ['报名', dimensions.registration, 12]]
+    pills.forEach(([label, value, max], pillIndex) => drawCanvasPill(ctx, 1190 + pillIndex * 90, y + 26, `${label} ${value}/${max}`, value / max >= 0.8))
+  })
+  ctx.fillStyle = '#94a3b8'; ctx.font = '14px "PingFang SC", "Microsoft YaHei", sans-serif'
+  ctx.fillText(`生成日期 ${new Date().toLocaleDateString('zh-CN')} · 分数为 WONLY 内部决策模型，不代表主办方或第三方评级`, 78, height - 62)
+  const link = document.createElement('a')
+  link.download = `${safeDownloadName(region)}_展会综合对比_${new Date().toISOString().slice(0, 10)}.png`
+  link.href = canvas.toDataURL('image/png')
+  link.click()
+}
+
+function roundCanvasRect(ctx, x, y, width, height, radius) {
+  const r = Math.min(radius, width / 2, height / 2)
+  ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + width, y, x + width, y + height, r); ctx.arcTo(x + width, y + height, x, y + height, r); ctx.arcTo(x, y + height, x, y, r); ctx.arcTo(x, y, x + width, y, r); ctx.closePath()
+}
+
+function drawCanvasLegend(ctx, x, y, color, label) {
+  ctx.fillStyle = color; ctx.beginPath(); ctx.arc(x, y - 5, 7, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#64748b'; ctx.font = '14px "PingFang SC", sans-serif'; ctx.fillText(label, x + 14, y)
+}
+
+function drawCanvasPill(ctx, x, y, text, strong) {
+  ctx.fillStyle = strong ? '#dcfce7' : '#f1f5f9'; roundCanvasRect(ctx, x, y, 82, 30, 8); ctx.fill(); ctx.fillStyle = strong ? '#15803d' : '#64748b'; ctx.font = '12px "PingFang SC", sans-serif'; ctx.textAlign = 'center'; ctx.fillText(text, x + 41, y + 20); ctx.textAlign = 'left'
+}
+
+function truncateCanvasText(ctx, text, maxWidth) {
+  if (ctx.measureText(text).width <= maxWidth) return text
+  let output = text
+  while (output.length > 1 && ctx.measureText(`${output}…`).width > maxWidth) output = output.slice(0, -1)
+  return `${output}…`
+}
+
+function safeDownloadName(value) {
+  return String(value || '区域').replace(/[\\/:*?"<>|]+/g, '_')
 }
 
 function countAssociationValues(records, key) {
