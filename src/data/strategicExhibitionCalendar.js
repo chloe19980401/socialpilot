@@ -1,6 +1,6 @@
 // 2027–2028 建材与门窗目标展会日历。
 // 日期、地点和定位仅采用主办方已公开的信息；本表是市场规划库，不代表竞品已确认参展。
-export const STRATEGIC_EXHIBITION_AUDIT_DATE = '2026-11-23'
+export const STRATEGIC_EXHIBITION_AUDIT_DATE = '2026-11-24'
 
 export const EXHIBITION_INDUSTRY_CATEGORIES = ['建材', '窗', '门', '幕墙', '智能建筑', '安防']
 export const EXHIBITION_DETAIL_CATEGORY_LABELS = {
@@ -204,6 +204,32 @@ export const STRATEGIC_EXHIBITION_CALENDAR = [
     sourceUrl: 'https://www.windowsdoorsandfacadeevent.com/visit/', venueDetail: 'Dubai Exhibition Centre', dateStatus: '日期已公布', priority: '区域优先',
     registrationStatus: '观众门票尚未开放 · 可登记开票提醒', registrationState: '报名待开放', registrationUrl: 'https://www.windowsdoorsandfacadeevent.com/visit/',
   }),
+  plannedExhibition({
+    id: 'plan-feicon-2027', exhibition: 'FEICON São Paulo 2027', aliases: ['FEICON 2027', '巴西圣保罗国际建筑建材展'], eventDate: '2027-04-06', eventDateEnd: '2027-04-09', country: '巴西', city: '圣保罗', venue: 'São Paulo Expo', region: '拉美 / 南美',
+    organizer: 'RX Brasil', categories: ['建材', '窗', '门', '幕墙', '智能建筑'], scopeLevel: '区域性', influenceTier: '区域核心',
+    influenceBasis: '巴西综合建筑与建材旗舰平台，面向拉美开发商、承包商、建筑师、经销商及工程采购。', audience: '开发商、承包商、建筑师、工程师、建材经销商、零售与项目采购',
+    wonlyFit: '高', wonlyUse: '适合南美综合建材渠道、工程门、系统门窗及智能入口合作。', scale: '拉美综合建筑建材旗舰展；最新上一届规模以主办方展后报告为准',
+    sourceUrl: 'https://www.feicon.com.br/pt-br.html', venueDetail: 'Rod. dos Imigrantes, km 1.5', dateStatus: '日期已公布', priority: '区域优先',
+    registrationStatus: '展位及赞助咨询已开放 · 专业观众登记节点以官网更新为准', registrationState: '报名已开放', registrationUrl: 'https://www.feicon.com.br/pt-br.html',
+  }),
+  plannedExhibition({
+    id: 'plan-exposec-2027', exhibition: 'Exposec 2027', aliases: ['巴西国际安防展'], eventDate: '2027-06-08', eventDateEnd: '2027-06-10', country: '巴西', city: '圣保罗', venue: 'São Paulo Expo Exhibition & Convention Center', region: '拉美 / 南美',
+    organizer: 'Fiera Milano Brasil × ABESE', categories: ['安防', '智能建筑', '门'], scopeLevel: '区域性', influenceTier: '区域核心',
+    influenceBasis: '拉美大型安全技术专业展；官方披露上一届覆盖 55,000+ 专业人士、40+ 国家及 800 个参展品牌。', audience: '安防集成商、经销商、安装商、企业安防负责人、政府与项目采购',
+    wonlyFit: '高', wonlyUse: '适合智能锁、门禁、智能入口与拉美安防渠道合作。', scale: '55,000+ 专业人士；40+ 国家；800 个参展品牌',
+    sourceUrl: 'https://exposec.tmp.br/en/', venueDetail: 'Rodovia dos Imigrantes, KM 1.5', dateStatus: '日期已公布', priority: '区域优先',
+    registrationStatus: '展位预订已开放 · 专业观众免费登记节点以官网更新为准', registrationState: '报名已开放', registrationUrl: 'https://exposec.tmp.br/en/',
+  }),
+  plannedExhibition({
+    id: 'plan-glass-south-america-2027', exhibition: 'Glass South America + E-squadria Show 2027', aliases: ['Glass South America 2027', 'E-squadria Show 2027', '巴西国际玻璃与门窗展'], eventDate: '2027-09-08', eventDateEnd: '2027-09-11', country: '巴西', city: '圣保罗', venue: 'Distrito Anhembi', region: '拉美 / 南美',
+    organizer: 'NürnbergMesse Brasil × Abravidro', categories: ['窗', '门', '幕墙', '建材'], scopeLevel: '区域性', influenceTier: '区域核心',
+    influenceBasis: 'Glass South America 是拉美玻璃产业核心专业展，与 E-squadria Show 同期覆盖门窗系统、型材、五金与建筑围护方案。', audience: '玻璃加工商、门窗制造商、型材与五金企业、幕墙承包商、建筑师及经销商',
+    wonlyFit: '高', wonlyUse: '适合门窗系统、工程门、五金、幕墙配套与南美专业渠道开发。', scale: '拥有 30 年行业积累；主办方定位为拉美玻璃产业核心会展平台',
+    sourceUrl: 'https://home.glassexpo.com.br/', venueDetail: 'Distrito Anhembi', dateStatus: '日期已公布', priority: '区域优先',
+    registrationStatus: '专业观众登记将于 2027 年开放 · 展位咨询入口已上线', registrationState: '报名待开放', registrationUrl: 'https://home.glassexpo.com.br/visitar/',
+  }),
+  ...additionalSouthAmerica2027Exhibitions().map(plannedExhibition),
+  ...additionalAmericas2027Exhibitions().map(plannedExhibition),
   ...additional2027RegionalExhibitions().map(plannedExhibition),
   plannedExhibition({
     id: 'plan-polyclose-2028', exhibition: 'Polyclose 2028', eventDate: '2028-01-19', eventDateEnd: '2028-01-21', country: '比利时', city: '根特', venue: 'Flanders Expo', region: '欧洲',
@@ -273,6 +299,109 @@ export const STRATEGIC_EXHIBITION_CALENDAR = [
     registrationStatus: '展商申请入口已开放 · 观众票务与截止时间待公布', registrationState: '报名已开放', registrationUrl: 'https://www.batimat.com/en-gb/the-show/equipbaie.html',
   }),
 ]
+
+function additionalSouthAmerica2027Exhibitions() { return [
+  {
+    id: 'plan-ficad-2027', exhibition: 'FICAD 2027', aliases: ['Feria de la Construcción, Arquitectura y Diseño'], eventDate: '2027-03-17', eventDateEnd: '2027-03-21', country: '玻利维亚', city: '圣克鲁斯', venue: 'FEXPOCRUZ', region: '拉美 / 南美', organizer: 'FEXPOCRUZ',
+    categories: ['建材', '窗', '门'], scopeLevel: '国家性', influenceTier: '区域核心', influenceBasis: '玻利维亚建筑、建筑设计与家装综合展，连接本国承包商、设计师、材料商和终端项目。', audience: '建筑企业、建筑师、设计师、开发商、建材渠道与家装采购', wonlyFit: '中', wonlyUse: '适合验证安第斯市场经销商、工程门与家装入口产品需求。', scale: '五日建筑、建筑设计与家装综合展', sourceUrl: 'https://www.fexpocruz.com.bo/feria/ficad', venueDetail: 'FEXPOCRUZ', dateStatus: '日期已公布', priority: '国家性补充', registrationStatus: '官方已公布档期 · 展商与观众登记节点以官网为准', registrationState: '报名时间待公布', registrationUrl: 'https://www.fexpocruz.com.bo/feria/ficad',
+  },
+  {
+    id: 'plan-expovivienda-chile-2027', exhibition: 'Expo Vivienda Chile 2027', eventDate: '2027-04-16', eventDateEnd: '2027-04-18', country: '智利', city: '圣地亚哥', venue: 'Estación Mapocho', region: '拉美 / 南美', organizer: 'FISA / GL events Chile',
+    categories: ['建材', '窗', '门', '智能建筑'], scopeLevel: '国家性', influenceTier: '国家级补充', influenceBasis: '智利住宅与家居项目平台，覆盖住房开发、装修、材料、门窗及智能住宅消费与渠道。', audience: '住房开发商、地产项目、家装渠道、设计师、业主与材料供应商', wonlyFit: '中', wonlyUse: '适合智利住宅入户门、系统窗、智能锁和本地经销渠道测试。', scale: '智利国家住宅与家居展；规模待主办方展后报告核验', sourceUrl: 'https://www.fisa.cl/descargas/FISA%2BGLevents_Portafolio.pdf', venueDetail: 'Estación Mapocho', dateStatus: '日期已公布', priority: '国家性补充', registrationStatus: '官方档期已发布 · 参展报名节点待主办方公布', registrationState: '报名时间待公布', registrationUrl: 'https://www.fisa.cl/descargas/FISA%2BGLevents_Portafolio.pdf',
+  },
+  {
+    id: 'plan-expoconstruccion-colombia-2027', exhibition: 'Expoconstrucción & Expodiseño 2027', eventDate: '2027-05-11', eventDateEnd: '2027-05-16', country: '哥伦比亚', city: '波哥大', venue: 'Corferias', region: '拉美 / 南美', organizer: 'Corferias × CAMACOL',
+    categories: ['建材', '窗', '门', '幕墙', '智能建筑'], scopeLevel: '区域性', influenceTier: '区域核心', influenceBasis: '哥伦比亚及安第斯区域综合建筑与设计商业平台，官方预计约 400 家参展商并设国际商务洽谈。', audience: '开发商、建筑师、设计师、承包商、建材制造商、经销商与国际买家', wonlyFit: '高', wonlyUse: '适合安第斯市场工程门、系统门窗、智能入口与区域代理开发。', scale: '约 400 家参展商；设国际商务洽谈与专业论坛', sourceUrl: 'https://expoconstruccionyexpodiseno.com/', venueDetail: 'Corferias Bogotá', dateStatus: '日期已公布', priority: '区域优先', registrationStatus: '专业观众预登记已开放 · 资格需审核', registrationState: '报名已开放', registrationUrl: 'https://expoconstruccionyexpodiseno.com/en/preregistro',
+  },
+  {
+    id: 'plan-constructecnia-2027', exhibition: 'Constructecnia 2027', eventDate: '2027-05-20', eventDateEnd: '2027-05-23', country: '巴拉圭', city: '卢克', venue: 'Centro de Convenciones de la CONMEBOL', region: '拉美 / 南美', organizer: 'Grupo Paraguay Eventos & Emprendimientos',
+    categories: ['建材', '窗', '门', '智能建筑'], scopeLevel: '国家性', influenceTier: '区域核心', influenceBasis: '巴拉圭最大建筑设备、机械与材料展，获国家机构和行业协会支持，并吸引多国品牌。', audience: '承包商、开发商、建筑师、工程师、建材经销商与公共项目采购', wonlyFit: '高', wonlyUse: '适合巴拉圭及南锥体二级市场经销商、工程门和建材渠道拓展。', scale: '900 个国内外品牌；历届累计 728,833 名观众', sourceUrl: 'https://constructecnia.com.py/', venueDetail: 'CONMEBOL Convention Center', dateStatus: '日期已公布', priority: '国家性补充', registrationStatus: '展位预订已开放 · 观众免费入场', registrationState: '报名已开放', registrationUrl: 'https://constructecnia.com.py/',
+  },
+  {
+    id: 'plan-batev-2027', exhibition: 'BATEV 2027', aliases: ['Exposición Internacional de la Construcción y la Vivienda'], eventDate: '2027-06-23', eventDateEnd: '2027-06-26', country: '阿根廷', city: '布宜诺斯艾利斯', venue: 'La Rural Predio Ferial', region: '拉美 / 南美', organizer: 'Messe Frankfurt Argentina × EFCA',
+    categories: ['建材', '窗', '门', '幕墙', '智能建筑'], scopeLevel: '国家性', influenceTier: '区域核心', influenceBasis: '阿根廷建筑与住宅行业核心专业展，连接制造商、开发商、施工企业、建筑师和专业采购。', audience: '制造商、开发商、施工企业、建筑师、安装商、经销商与专业采购', wonlyFit: '高', wonlyUse: '适合阿根廷及南锥体工程门、门窗、五金和经销商开发。', scale: '214 家企业；24,347 名观众；15,000㎡；25 场专业活动', sourceUrl: 'https://www.batev.com.ar/web/sobre-batev/', venueDetail: 'La Rural', dateStatus: '日期已公布', priority: '国家性补充', registrationStatus: '观众在线登记 2027-04-09 开放，至 2027-06-26；免费入场', registrationState: '报名待开放', registrationUrl: 'https://www.batev.com.ar/web/visitantes/',
+  },
+  {
+    id: 'plan-concrete-show-sa-2027', exhibition: 'Concrete Show South America 2027', eventDate: '2027-08-17', eventDateEnd: '2027-08-19', country: '巴西', city: '圣保罗', venue: 'São Paulo Expo', region: '拉美 / 南美', organizer: 'Informa Markets',
+    categories: ['建材'], scopeLevel: '区域性', influenceTier: '区域核心', influenceBasis: '拉美混凝土、建筑和基础设施产业链旗舰展，工程项目与施工采购密度高，但门锁品类垂直度较低。', audience: '承包商、混凝土企业、基础设施项目、工程师、经销商和施工采购', wonlyFit: '中', wonlyUse: '适合工程门、项目配套和大型承包商线索获取，不适合作为智能锁主展。', scale: '26,892 名观众；450+ 参展品牌；36,000㎡；81% 为决策者', sourceUrl: 'https://www.concreteshow.com.br/en/', venueDetail: 'São Paulo Expo', dateStatus: '日期已公布', priority: '区域优先', registrationStatus: '展位申请入口已开放 · 观众登记节点以官网为准', registrationState: '报名已开放', registrationUrl: 'https://www.concreteshow.com.br/en/',
+  },
+  {
+    id: 'plan-ess-colombia-2027', exhibition: 'ESS+ International Security Fair 2027', aliases: ['Feria Internacional de Seguridad ESS+'], eventDate: '2027-08-25', eventDateEnd: '2027-08-27', country: '哥伦比亚', city: '波哥大', venue: 'Corferias', region: '拉美 / 南美', organizer: 'Corferias × PAFYC × IFEMA Madrid',
+    categories: ['安防', '智能建筑', '门'], scopeLevel: '区域性', influenceTier: '区域核心', influenceBasis: '拉美综合安防核心平台，覆盖电子安防、门禁、关键基础设施与工业安全；官方展商目录已出现 ABLOY、ASSA ABLOY 等品牌。', audience: '安防集成商、分销商、门禁采购、政府、关键基础设施与企业安全负责人', wonlyFit: '高', wonlyUse: '适合智能锁、门禁、智能入口、安防门和南美集成商渠道开发。', scale: '上一届 16,000+ 专业观众；400 家直接及间接展商；26 个国家', sourceUrl: 'https://www.securityfaircolombia.com/', venueDetail: 'Corferias halls 11–19', dateStatus: '日期已公布', priority: '区域优先', registrationStatus: '展位申请与专业观众注册入口已开放', registrationState: '报名已开放', registrationUrl: 'https://www.securityfaircolombia.com/',
+    participation: '官方线上展商目录可核验 ABLOY 与 ASSA ABLOY COLOMBIA 等门禁及锁具竞品。',
+  },
+  {
+    id: 'plan-seguridadexpo-chile-2027', exhibition: 'SeguridadExpo Chile 2027', eventDate: '2027-08-31', eventDateEnd: '2027-09-02', country: '智利', city: '圣地亚哥', venue: 'Espacio Riesco', region: '拉美 / 南美', organizer: 'FISA / GL events Chile',
+    categories: ['安防', '智能建筑', '门'], scopeLevel: '国家性', influenceTier: '区域核心', influenceBasis: '智利安防和公共安全专业平台，连接政府、企业安全、系统集成和基础设施采购。', audience: '政府与公共安全、企业安防、系统集成商、经销商、工业和基础设施采购', wonlyFit: '高', wonlyUse: '适合智能锁、门禁、智能入口和智利安防集成商合作。', scale: '三日智利专业安防展；规模以主办方最新展后报告为准', sourceUrl: 'https://www.seguridadexpo.cl/', venueDetail: 'Espacio Riesco', dateStatus: '日期已公布', priority: '国家性补充', registrationStatus: '官方已公布档期 · 展位及观众登记节点以官网为准', registrationState: '报名时间待公布', registrationUrl: 'https://www.seguridadexpo.cl/',
+  },
+  {
+    id: 'plan-expodeco-peru-2027', exhibition: 'EXPODECO 2027', aliases: ['Exposición Internacional de Arquitectura y Diseño'], eventDate: '2027-09-08', eventDateEnd: '2027-09-12', country: '秘鲁', city: '利马', venue: 'Centro de Convenciones Corporación E', region: '拉美 / 南美', organizer: 'EXPODECO',
+    categories: ['建材', '窗', '门', '智能建筑'], scopeLevel: '国家性', influenceTier: '国家级补充', influenceBasis: '秘鲁建筑、设计、室内和家居材料平台，适合接触建筑师、设计师和高端住宅选型渠道。', audience: '建筑师、室内设计师、开发商、材料品牌、家装渠道与高端住宅客户', wonlyFit: '中', wonlyUse: '适合高端入户门、系统窗、智能锁及门墙柜整体空间展示。', scale: '公开展商目录约 150+ 家；最终规模待主办方核验', sourceUrl: 'https://expodeco.pe/', venueDetail: 'Lima', dateStatus: '日期已公布', priority: '国家性补充', registrationStatus: '2027 具体报名开放与截止时间待主办方公布', registrationState: '报名时间待公布', registrationUrl: 'https://expodeco.pe/',
+  },
+  {
+    id: 'plan-feicon-rio-2027', exhibition: 'FEICON Rio 2027', eventDate: '2027-10-05', eventDateEnd: '2027-10-07', country: '巴西', city: '里约热内卢', venue: 'Riocentro', region: '拉美 / 南美', organizer: 'RX Brasil',
+    categories: ['建材', '窗', '门', '智能建筑'], scopeLevel: '国家性', influenceTier: '区域核心', influenceBasis: 'FEICON 首次扩展至里约热内卢，覆盖巴西东南部建筑、装修和项目采购；首届需与圣保罗旗舰展分开评价。', audience: '建筑商、开发商、建筑师、设计师、经销商与工程采购', wonlyFit: '高', wonlyUse: '适合巴西东南部区域经销商、项目门和智能入口市场测试。', scale: '2027 里约首届；暂无真实往届规模', sourceUrl: 'https://www.feiconrio.com.br/en-us.html', venueDetail: 'Riocentro', dateStatus: '日期已公布', priority: '国家性补充', registrationStatus: '展位及合作咨询已开放 · 观众登记节点待公布', registrationState: '报名已开放', registrationUrl: 'https://www.feiconrio.com.br/en-us.html', maturity: '首届待验证',
+  },
+  {
+    id: 'plan-semana-madera-2027', exhibition: 'Semana de la Madera 2027', eventDate: '2027-10-14', eventDateEnd: '2027-10-17', country: '智利', city: '圣地亚哥', venue: 'Metropolitan Santiago', region: '拉美 / 南美', organizer: 'Madera21 / CORMA × FISA',
+    categories: ['建材', '窗', '门'], scopeLevel: '国家性', influenceTier: '垂直专业', influenceBasis: '智利木结构、木制建材、设计和产业创新平台，对木门、工程木构与材料合作具有垂直价值。', audience: '木材企业、建筑师、结构工程师、开发商、制造商、设计师与材料采购', wonlyFit: '中', wonlyUse: '适合木门、木饰面、门墙一体与智利木结构项目合作。', scale: '四日木结构与木制建材专业活动', sourceUrl: 'https://www.fisa.cl/descargas/FISA%2BGLevents_Portafolio.pdf', venueDetail: 'Metropolitan Santiago', dateStatus: '日期已公布', priority: '国家性补充', registrationStatus: '官方档期已发布 · 参展及观众登记节点待公布', registrationState: '报名时间待公布', registrationUrl: 'https://www.fisa.cl/descargas/FISA%2BGLevents_Portafolio.pdf',
+  },
+  {
+    id: 'plan-biel-2027', exhibition: 'BIEL Light + Building Buenos Aires 2027', eventDate: '2027-10-20', eventDateEnd: '2027-10-23', country: '阿根廷', city: '布宜诺斯艾利斯', venue: 'La Rural Predio Ferial', region: '拉美 / 南美', organizer: 'Messe Frankfurt Argentina × CADIEEL',
+    categories: ['智能建筑', '安防', '建材'], scopeLevel: '区域性', influenceTier: '区域核心', influenceBasis: '拉美电气、电子、照明与楼宇技术专业平台，聚焦未来住宅和城市技术及系统集成。', audience: '电气工程、系统集成商、楼宇自动化、照明、设施管理、建筑师与渠道商', wonlyFit: '高', wonlyUse: '适合智能锁、门控、楼宇互联、智能入口与系统集成伙伴拓展。', scale: '四日专业展；2025 展后数据由主办方另行发布', sourceUrl: 'https://biel-light-building.ar.messefrankfurt.com/buenosaires/en.html', venueDetail: 'La Rural', dateStatus: '日期已公布', priority: '区域优先', registrationStatus: '展位销售与观众在线登记已开放', registrationState: '报名已开放', registrationUrl: 'https://biel-light-building.ar.messefrankfurt.com/buenosaires/en/accreditation.html',
+  },
+  {
+    id: 'plan-feria-construccion-uruguay-2027', exhibition: 'Feria de la Construcción Uruguay 2027', eventDate: '2027-10-20', eventDateEnd: '2027-10-24', country: '乌拉圭', city: '蒙得维的亚', venue: 'Rural del Prado', region: '拉美 / 南美', organizer: 'Feria de la Construcción Uruguay',
+    categories: ['建材', '窗', '门', '智能建筑'], scopeLevel: '国家性', influenceTier: '国家级补充', influenceBasis: '乌拉圭国家重点建筑行业展，2027 届获政府宣布为国家关注活动。', audience: '承包商、开发商、建筑师、工程师、经销商、公共项目与住宅采购', wonlyFit: '中', wonlyUse: '适合乌拉圭及南锥体小型市场的经销商、工程门和住宅渠道测试。', scale: '第 14 届；规模待主办方最新展后报告核验', sourceUrl: 'https://www.gub.uy/presidencia/institucional/normativa/resolucion-sn026-se-declara-interes-nacional-decima-cuarta-edicion-feria', venueDetail: 'Rural del Prado', dateStatus: '日期已公布', priority: '国家性补充', registrationStatus: '政府已确认档期 · 具体展位及观众登记节点待主办方公布', registrationState: '报名时间待公布', registrationUrl: 'https://www.gub.uy/presidencia/institucional/normativa/resolucion-sn026-se-declara-interes-nacional-decima-cuarta-edicion-feria',
+  },
+  {
+    id: 'plan-mt-expo-2027', exhibition: 'M&T Expo 2027', eventDate: '2027-11-16', eventDateEnd: '2027-11-19', country: '巴西', city: '圣保罗', venue: 'São Paulo Expo', region: '拉美 / 南美', organizer: 'Messe München do Brasil',
+    categories: ['建材'], scopeLevel: '区域性', influenceTier: '区域核心', influenceBasis: 'bauma NETWORK 拉美工程机械、施工与矿业平台，工程采购强但门锁类垂直度低。', audience: '大型承包商、工程机械、基础设施、矿业、设备经销商与项目采购', wonlyFit: '低', wonlyUse: '仅适合作为大型承包商和工程项目线索补充，不建议作为门锁主展。', scale: '第 13 届拉美工程机械与施工设备展', sourceUrl: 'https://www.mtexpo.com.br/en/', venueDetail: 'São Paulo Expo', dateStatus: '日期已公布', priority: '区域优先', registrationStatus: '展位申请已开放 · 观众登记节点以官网为准', registrationState: '报名已开放', registrationUrl: 'https://www.mtexpo.com.br/en/',
+  },
+] }
+
+function additionalAmericas2027Exhibitions() { return [
+  {
+    id: 'plan-isc-west-2027', exhibition: 'ISC West 2027', eventDate: '2027-04-05', eventDateEnd: '2027-04-09', country: '美国', city: '拉斯维加斯', venue: 'The Venetian Expo', region: '北美', organizer: 'RX × Security Industry Association',
+    categories: ['安防', '智能建筑', '门'], scopeLevel: '区域性', influenceTier: '全球旗舰', influenceBasis: '美国综合安防旗舰展，覆盖门禁、身份认证、报警、视频、AI 与联网物联安全。', audience: '安防集成商、门禁渠道、企业安全负责人、政府、安装商、经销商与项目采购', wonlyFit: '高', wonlyUse: '适合智能锁、门禁、智能入口和北美安防集成商渠道开发。', scale: '29,000+ 安防专业人士；750+ 参展品牌；80+ 国家', sourceUrl: 'https://www.iscevents.com/isc/en-us.html', venueDetail: 'SIA 教育 4 月 5–8 日；展厅 4 月 7–9 日', dateStatus: '日期已公布', priority: '区域优先', registrationStatus: '报名提醒登记已开放 · 正式观众注册待开放', registrationState: '报名待开放', registrationUrl: 'https://www.iscevents.com/isc/en-us/pre-register.html', categoryConfidence: '官方产品板块已核验',
+  },
+  {
+    id: 'plan-sicon-mexico-2027', exhibition: 'SICON México 2027', aliases: ['Semana Internacional de la Construcción México'], eventDate: '2027-04-20', eventDateEnd: '2027-04-22', country: '墨西哥', city: '瓜达拉哈拉', venue: 'Expo Guadalajara', region: '北美 / 拉美门户', organizer: 'Expo Guadalajara × IFEMA Madrid × CMIC',
+    categories: ['建材', '窗', '门', '智能建筑'], scopeLevel: '区域性', influenceTier: '区域核心', influenceBasis: '墨西哥 Bajío 及中美洲建筑产业 B2B 平台，覆盖制造商、开发商、工程采购、建筑师和材料渠道。', audience: '施工企业、开发商、项目经理、建筑师、工程师、经销商、批发商与安装商', wonlyFit: '高', wonlyUse: '适合墨西哥中西部项目门、经销网络和智能入口工程线索。', scale: '上届 5,500+ 观众；120 家展商；5,000㎡；300+ 商务洽谈；85% 决策者', sourceUrl: 'https://www.ifema.es/siconmx/', venueDetail: 'Expo Guadalajara', dateStatus: '日期已公布', priority: '区域优先', registrationStatus: '专业观众注册与参展申请已开放', registrationState: '报名已开放', registrationUrl: 'https://www.ifema.es/siconmx/registro-profesional/',
+  },
+  {
+    id: 'plan-expo-seguridad-mexico-2027', exhibition: 'Expo Seguridad México 2027 · CDMX', eventDate: '2027-06-22', eventDateEnd: '2027-06-24', country: '墨西哥', city: '墨西哥城', venue: 'Centro Banamex', region: '北美 / 拉美门户', organizer: 'RX México',
+    categories: ['安防', '智能建筑', '门'], scopeLevel: '区域性', influenceTier: '区域核心', influenceBasis: '墨西哥综合安防核心展，官方产品范围覆盖门禁、生物识别、报警、周界安全、监控、AI 与基础设施防护。', audience: '安防集成商、经销商、企业安全、政府、关键基础设施、物流和门禁采购', wonlyFit: '高', wonlyUse: '适合智能锁、门禁、智能入口、安防门与墨西哥系统集成商渠道。', scale: '三日墨西哥综合安防专业展；2027 展商规模待展后报告', sourceUrl: 'https://www.exposeguridadmexico.com/en-gb/exhibit.html', venueDetail: 'Centro Banamex', dateStatus: '日期已公布', priority: '区域优先', registrationStatus: '展位与定制合作方案已开放 · 观众登记节点待公布', registrationState: '报名已开放', registrationUrl: 'https://www.exposeguridadmexico.com/en-gb/exhibit.html', categoryConfidence: '官方展品目录已核验',
+  },
+  {
+    id: 'plan-ferretera-dominicana-2027', exhibition: 'Expo Ferretera Dominicana 2027', eventDate: '2027-06-25', eventDateEnd: '2027-06-27', country: '多米尼加共和国', city: '圣多明各', venue: 'Dominican Fiesta Hotel & Convention Center', region: '加勒比', organizer: 'Asociación Dominicana de Ferreteros',
+    categories: ['建材', '窗', '门', '安防'], scopeLevel: '区域性', influenceTier: '区域核心', influenceBasis: '多米尼加硬件与建筑行业核心渠道展，面向进口商、分销商、建材零售、承包商及安防企业。', audience: '五金店、进口商、分销商、品牌代理、建筑公司、承包商、建筑师与安防企业', wonlyFit: '高', wonlyUse: '适合加勒比经销商、五金渠道、安防门和智能锁进口合作。', scale: '第 21 届；三日硬件与建筑渠道展；展商及观众总量未公开', sourceUrl: 'https://www.expoferreteradominicana.com/', venueDetail: 'Dominican Fiesta Convention Center', dateStatus: '日期已公布', priority: '区域优先', registrationStatus: '展位和赞助报价已公开 · 可直接联系主办方', registrationState: '报名已开放', registrationUrl: 'https://www.expoferreteradominicana.com/',
+  },
+  {
+    id: 'plan-glasstech-doors-windows-mexico-2027', exhibition: 'Glasstech + Doors&Windows Mexico 2027', eventDate: '2027-07-07', eventDateEnd: '2027-07-09', country: '墨西哥', city: '蒙特雷', venue: 'Cintermex', region: '北美 / 拉美门户', organizer: 'Y T International Enterprise / World Expo Group',
+    categories: ['窗', '门', '幕墙', '建材'], scopeLevel: '区域性', influenceTier: '区域核心', influenceBasis: '墨西哥玻璃、门、窗、型材、五金与幕墙专业 B2B 展，门窗类垂直度显著高于综合建材展。', audience: '门窗制造商、玻璃加工商、型材与五金企业、幕墙承包商、经销商及建筑师', wonlyFit: '高', wonlyUse: '适合工程门、系统门窗、五金与门窗一体化渠道开发。', scale: '7,000㎡；150+ 全球供应商', sourceUrl: 'https://www.glasstechmexico.com/en/fact-sheet/', venueDetail: 'Cintermex · 与 Glasstech Mexico 同期', dateStatus: '日期已公布', priority: '区域优先', registrationStatus: '专业观众注册于 2027 年 3 月开放 · 展位咨询已开放', registrationState: '报名待开放', registrationUrl: 'https://www.glasstechmexico.com/get-your-passes.html', categoryConfidence: '官方 Fact Sheet 已核验',
+  },
+  {
+    id: 'plan-cedia-expo-2027', exhibition: 'CEDIA Expo 2027', eventDate: '2027-09-07', eventDateEnd: '2027-09-10', country: '美国', city: '拉斯维加斯', venue: 'Las Vegas Convention Center', region: '北美', organizer: 'Emerald × CEDIA',
+    categories: ['智能建筑', '安防', '门'], scopeLevel: '区域性', influenceTier: '全球旗舰', influenceBasis: '北美住宅系统集成与智能家居旗舰展，覆盖自动化、联网、智能照明、遮阳、集成安防和入口生态。', audience: '系统集成商、安装商、建筑商、设计师、建筑师、智能家居经销商与技术采购', wonlyFit: '高', wonlyUse: '适合智能锁、智能入口和住宅自动化生态伙伴拓展。', scale: '300+ 参展品牌；10,000+ 专业人士；1,000+ 新解决方案', sourceUrl: 'https://cediaexpo.com/show/about/', venueDetail: '会议 9 月 7–10 日；展厅 9 月 8–10 日', dateStatus: '日期已公布', priority: '区域优先', registrationStatus: '参展意向及开票提醒已开放 · 正式票务待公布', registrationState: '报名待开放', registrationUrl: 'https://cediaexpo.com/exhibit/inquire/', categoryConfidence: '官方展品与受众描述已核验',
+  },
+  {
+    id: 'plan-chim-puerto-rico-2027', exhibition: 'Caribbean Home Improvement Market 2027', aliases: ['CHIM 2027'], eventDate: '2027-09-14', eventDateEnd: '2027-09-15', country: '波多黎各', city: '圣胡安', venue: 'Puerto Rico Convention Center', region: '加勒比', organizer: 'Caribbean Home Improvement Market',
+    categories: ['建材', '窗', '门'], scopeLevel: '区域性', influenceTier: '区域核心', influenceBasis: '加勒比硬件、家装和建材采购平台，集中连接区域供应商、进口商、零售和专业买家。', audience: '硬件与建材供应商、进口商、分销商、零售商、承包商、家装采购和区域经销商', wonlyFit: '高', wonlyUse: '适合加勒比入户门、五金、系统窗和经销进口渠道开发。', scale: '两日加勒比硬件与建材专业展；展商及观众总量未公开', sourceUrl: 'https://thechimpr.com/', venueDetail: 'Puerto Rico Convention Center', dateStatus: '日期已公布', priority: '区域优先', registrationStatus: '参展和联系入口已开放 · 截止日期未公布', registrationState: '报名已开放', registrationUrl: 'https://thechimpr.com/',
+  },
+  {
+    id: 'plan-expo-seguridad-monterrey-2027', exhibition: 'Expo Seguridad México 2027 · Monterrey', eventDate: '2027-10-06', eventDateEnd: '2027-10-07', country: '墨西哥', city: '蒙特雷', venue: 'Cintermex', region: '北美 / 拉美门户', organizer: 'RX México',
+    categories: ['安防', '智能建筑', '门'], scopeLevel: '区域性', influenceTier: '区域核心', influenceBasis: 'Expo Seguridad 首届蒙特雷分展，面向墨西哥北部工业、物流、制造与企业安防采购；首届需单独评估。', audience: '北墨工业企业、安防集成商、经销商、物流、企业安全、公共安全与门禁采购', wonlyFit: '高', wonlyUse: '适合智能锁、工业门禁、智能入口及墨西哥北部渠道测试。', scale: '2027 首届；暂无真实往届展商与观众数据', sourceUrl: 'https://www.exposeguridadmexico.com/en-gb/exhibit.html', venueDetail: 'Cintermex', dateStatus: '日期已公布', priority: '区域优先', registrationStatus: '展位与定制合作方案已开放 · 观众登记节点待公布', registrationState: '报名已开放', registrationUrl: 'https://www.exposeguridadmexico.com/en-gb/exhibit.html', maturity: '首届待验证', categoryConfidence: '官方展品目录已核验',
+  },
+  {
+    id: 'plan-expo-cihac-2027', exhibition: 'Expo CIHAC 2027', eventDate: '2027-10-13', eventDateEnd: '2027-10-15', country: '墨西哥', city: '墨西哥城', venue: 'Centro Banamex', region: '北美 / 拉美门户', organizer: 'Informa Markets',
+    categories: ['建材', '窗', '门', '智能建筑'], scopeLevel: '区域性', influenceTier: '区域核心', influenceBasis: '墨西哥及拉美综合建筑行业核心展，覆盖项目、结构、机电、装修、材料和智能建造全流程。', audience: '开发商、承包商、建筑师、工程师、经销商、制造商、零售与项目采购', wonlyFit: '高', wonlyUse: '适合墨西哥工程门、经销商、建材零售和智能入口综合展示。', scale: '500+ 国内外展商；19,000+ 高质量买家；23,000+㎡', sourceUrl: 'https://www.expocihac.com/', venueDetail: 'Centro Banamex', dateStatus: '日期已公布', priority: '区域优先', registrationStatus: '展位和合作咨询已开放 · 观众登记节点待公布', registrationState: '报名已开放', registrationUrl: 'https://www.expocihac.com/',
+  },
+  {
+    id: 'plan-glassbuild-america-2027', exhibition: 'GlassBuild America 2027', eventDate: '2027-10-26', eventDateEnd: '2027-10-28', country: '美国', city: '奥兰多', venue: 'Orange County Convention Center', region: '北美', organizer: 'National Glass Association',
+    categories: ['窗', '门', '幕墙', '建材'], scopeLevel: '区域性', influenceTier: '全球旗舰', influenceBasis: '北美最大的玻璃、门窗专业展，覆盖建筑玻璃、门窗系统、五金、加工设备和建筑围护采购。', audience: '玻璃与门窗制造商、加工商、安装商、幕墙承包商、经销商、建筑师与专业买家', wonlyFit: '高', wonlyUse: '适合系统门窗、工程门、五金与北美专业渠道开发。', scale: '500+ 展商；9,000+ 观众；220,000+ 平方英尺', sourceUrl: 'https://www.glassbuildamerica.com/future-dates', venueDetail: 'Orange County Convention Center · South/North Halls', dateStatus: '日期已公布', priority: '区域优先', registrationStatus: '2027 展商申请已开放 · 观众票务待开放', registrationState: '报名已开放', registrationUrl: 'https://www.glassbuildamerica.com/2027-exhibitors-sponsors', categoryConfidence: '官方展会定位与展品目录已核验',
+  },
+] }
 
 function additional2027RegionalExhibitions() { return [
   {

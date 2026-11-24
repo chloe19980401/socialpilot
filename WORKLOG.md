@@ -118,3 +118,25 @@
 - 数据验收：43 条记录全部具备完整九项画像与判断依据，0 个重复 ID，覆盖 15 个区域标签。Vite 生产构建及 `git diff --check` 通过；仅保留既有大包体积提示。本轮尚未部署。
 - 上线：功能提交 `c5429a3` 已推送 GitHub main；GitHub Pages Run `45141481399` 成功完成。生产域名加载静态包 `index-CCFVQ5y3.js`，线上资源已核验包含“专业类目垂直度”和“类目证据状态”。
 - Excel 交付：生成《全球展会信息_九项专业类目_2027-2028.xlsx》，总表覆盖当前 43 场展会，并按中东、中亚、欧洲、北美、亚太、非洲和拉美拆分工作表。字段包含报名节点、往届规模、竞品证据、九项垂直度、证据状态、判断依据、推荐产品和展位主题；日期保持 `yyyy-mm-dd` 纯日期文本。Artifact Tool 回读显示总表 43 场、45 列，公式错误扫描 0 条，XLSX 压缩包完整性检查通过，并已渲染预览复核。
+
+# 2026-11-23 各区域展会详细综合对比图
+
+- 按用户确认的旧版对比格式重新生成区域图：每场展会为一列、每项决策指标为一行，不再采用优先级条形排名图。
+- 已输出中东、中亚、欧洲、北美、亚太、非洲 6 张 PNG，覆盖当前战略库 43 场展会；拉美当前数据库为 0 场，因此未生成空白图。
+- 每张图包含 25 项指标：状态、日期、城市、场馆、综合分、核心属性、展业垂直度、九项专业类目匹配、经销商与工程项目开发、国际买家覆盖、竞品密度、往届规模、报名状态、产品与展位建议、证据状态。
+- 已检查 PNG 文件类型与分辨率，并人工预览中东图确认中文、表头、换行、颜色与行列结构正常；6 张图片已打包为《全球展会_各区域详细综合对比图.zip》。
+- 查漏修正：补回 FEICON São Paulo 2027、Exposec 2027、Glass South America + E-squadria Show 2027 三场南美核心展，日期、场馆、定位与报名状态均按主办方当前公开信息录入；战略库由 43 场增至 46 场。
+- 新增《拉美_展会详细横向对比.png》，采用同一 25 项指标模型；已人工预览确认三展列、九项专业匹配、往届规模、报名状态和参展建议均正常，并重新打包为包含 7 个区域的 ZIP。Vite 生产构建通过，仅保留既有大包体积提示；本轮尚未部署上线。
+- 南美范围再次扩展为“2027-03-01 之后且官方已公布具体日期”的完整核验清单：由 3 场增至 17 场，覆盖巴西、阿根廷、智利、哥伦比亚、秘鲁、玻利维亚、巴拉圭和乌拉圭。新增 FICAD、Expo Vivienda Chile、Expoconstrucción & Expodiseño、Constructecnia、BATEV、Concrete Show South America、ESS+、SeguridadExpo Chile、EXPODECO、FEICON Rio、Semana de la Madera、BIEL Light + Building Buenos Aires、Feria de la Construcción Uruguay、M&T Expo。
+- EXCON Peru 等仅公布月份或尚无官方精确日期的展会没有伪造日期写入主表，留作待确认清单；Intersec Buenos Aires、FESQUA 等非 2027 届不纳入本轮。
+- 重生成 6464×2077 的《拉美_展会详细横向对比.png》，17 场展会完整纳入同一 25 指标横向表；人工预览确认表头、日期、国家城市、专业匹配、规模及报名状态可读。Vite 生产构建通过，全球 7 区 ZIP 已更新；本轮尚未部署。
+
+# 2026-11-23 前期候选三展对比
+
+- 按用户提供的三场前期候选展会生成 ARCHIDEX 2027、UzBuild 2027、Windows, Doors & Facades Event 2027 的横向详细对比图。
+- 沿用 25 项决策指标，覆盖日期地点、综合分、专业垂直度、九项品类匹配、渠道与项目价值、国际买家、竞品证据、往届规模、报名状态、建议产品和展位主题。
+- 排名按同一内部模型综合分降序展示：UzBuild 90、ARCHIDEX 84、WDF Dubai 79；WDF 的门窗幕墙垂直度最高，但因报名状态和独立规模证据较弱，综合分低于前两项。
+- 输出《前期候选三展_ARCHIDEX_UzBuild_WDF_Dubai_详细对比.png》，已人工预览确认中文、排序、换行和表格结构正常。
+- 按用户追加要求加入 Big 5 Construct South Africa 2027，升级为四展对比；同模型重新排序为南非 Big 5（91）、UzBuild（90）、ARCHIDEX（84）、WDF Dubai（79）。
+- 输出《前期候选四展_ARCHIDEX_UzBuild_WDF_Dubai_Big5_South_Africa_详细对比.png》，已人工预览确认四列完整、排名正确及 25 项指标可读。
+2026-11-24 | 美洲 2027 年展会补查与专业垂直度对比：按“2027-03-01 以后、官方已确认精确日期、门/锁/窗/幕墙/智能家居/安防/建材相关”标准补入 10 场北美及加勒比展会：ISC West、SICON México、Expo Seguridad México（CDMX 与 Monterrey 分届）、Expo Ferretera Dominicana、Glasstech + Doors&Windows Mexico、CEDIA Expo、Caribbean Home Improvement Market、Expo CIHAC、GlassBuild America。与原有 18 场南北美洲展会合并后，完整对比样本为 28 场。新增美洲专用排序模型：先按 WONLY 品类专业垂直度排序，门窗玻璃/安防/智能家居专业展获得直接垂直度加权，再比较综合分、公开规模及展期；对比图仍保留 25 项维度，包括九类品类匹配、经销商/工程项目价值、国际买家、竞品证据、上一届规模、报名状态、建议产品和展位主题。已生成 `outputs/019ff4d1-d2a4-7510-981b-909a8ad61d83/区域详细对比图/美洲2027年3月后_专业垂直度与规模多指标排名.png`（10424×2077），视觉复核通过；Vite 生产构建通过。GSX 2027、WinDoor Canada 2027、CAPAC Expo 2027、FerretExpo Guatemala 2027 因截至核验日未找到主办方确认的 2027 精确日期，暂列待确认池，未以推测日期入库。部署状态：未上线。
