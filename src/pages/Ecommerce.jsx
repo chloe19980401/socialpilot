@@ -104,11 +104,9 @@ export default function Ecommerce() {
   useEffect(() => { loadGoogle(googleDays, { refreshReport: !googleReport }) }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function connectGoogle() {
+    if (profile?.role !== 'admin' || googleLoading) return
     setGoogleLoading(true); setGoogleError('')
     try {
-      localStorage.removeItem(GOOGLE_REPORT_CACHE_KEY)
-      setGoogleReport(null)
-      setGoogleReportCachedAt('')
       const { data, error } = await supabase.functions.invoke('google-web-oauth', { body: {} })
       if (error) throw error
       if (data?.error) throw new Error(data.error)
@@ -246,11 +244,11 @@ export default function Ecommerce() {
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
           <div><div className="font-semibold text-slate-800">网站流量与自然搜索</div><div className="mt-0.5 text-xs text-slate-500">Google Analytics 4 + Google Search Console · 只读连接 · <a className="underline" href="/privacy.html" target="_blank" rel="noopener noreferrer">隐私政策</a></div></div>
           <div className="flex flex-wrap items-center gap-2">
-            {googleStatus?.connected && <span className="text-xs text-green-600">已连接 {googleStatus.google_email}</span>}
+            {googleStatus?.connected && <span className="text-xs text-green-600">已连接 {googleStatus.google_email}{googleStatus.connected_at && ` · 授权时间 ${new Date(googleStatus.connected_at).toLocaleString('zh-CN')}`}</span>}
             {googleStatus?.connected && googleConfig.ga_property_id && googleConfig.gsc_site_url && <select className="rounded-xl border border-slate-200 px-3 py-2 text-sm" value={googleDays} onChange={(e) => { const value = Number(e.target.value); setGoogleDays(value); loadGoogle(value) }}><option value={28}>近 28 天</option><option value={90}>近 90 天</option><option value={180}>近 180 天</option></select>}
             {googleReport && <Button variant="primary" onClick={analyzeSEO} disabled={seoLoading}><Sparkles size={15} className={seoLoading ? 'animate-pulse' : ''} />{seoLoading ? '分析中…' : 'AI SEO 分析'}</Button>}
             {googleStatus?.connected && <Button onClick={() => loadGoogle()} disabled={googleLoading}><RefreshCw size={15} className={googleLoading ? 'animate-spin' : ''} />同步</Button>}
-            {profile?.role === 'admin' && !googleStatus?.connected && <Button variant="primary" onClick={connectGoogle} disabled={googleLoading}><Link2 size={15} />连接 Google</Button>}
+            {profile?.role === 'admin' && <Button variant={googleStatus?.connected ? undefined : 'primary'} onClick={connectGoogle} disabled={googleLoading}><Link2 size={15} />{googleStatus?.connected ? '重新授权 Google' : '连接 Google'}</Button>}
             {profile?.role === 'admin' && googleStatus?.connected && (!googleConfig.ga_property_id || !googleConfig.gsc_site_url) && <Button onClick={discoverGoogle} disabled={googleLoading}><Settings2 size={15} />选择数据源</Button>}
           </div>
         </div>
