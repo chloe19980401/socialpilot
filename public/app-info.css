@@ -1,0 +1,6 @@
+body { margin: 0 auto; max-width: 48rem; padding: 2rem 1.25rem; background: #f8fafc; color: #17243d; font: 1rem/1.75 system-ui, sans-serif; }
+nav { display: flex; flex-wrap: wrap; gap: 1.25rem; padding-bottom: 1rem; border-bottom: 1px solid #cbd5e1; }
+a { color: #1748bb; text-underline-offset: .2em; }
+h1 { line-height: 1.25; }
+h2 { font-size: 1.2rem; margin-top: 1.75rem; }
+footer { border-top: 1px solid #cbd5e1; margin-top: 2rem; padding-top: 1rem; }
