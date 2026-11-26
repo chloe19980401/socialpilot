@@ -33,8 +33,6 @@ function readGoogleReportCache(config) {
 
 export default function Ecommerce() {
   const { profile } = useAuth()
-  const [brand, setBrand] = useState('all')
-  const [brands, setBrands] = useState([])
   const [orders, setOrders] = useState([])
   const [costs, setCosts] = useState([])
   const [spend, setSpend] = useState([])
@@ -59,13 +57,11 @@ export default function Ecommerce() {
 
   async function load() {
     setLoading(true)
-    const [{ data: b }, { data: o }, { data: c }, { data: s }] = await Promise.all([
-      supabase.from('brands').select('*'),
+    const [{ data: o }, { data: c }, { data: s }] = await Promise.all([
       supabase.from('store_orders').select('*'),
       supabase.from('product_costs').select('*'),
       supabase.from('marketing_spend').select('*'),
     ])
-    setBrands(b || [])
     setOrders(o || [])
     setCosts(c || [])
     setSpend(s || [])
@@ -170,32 +166,22 @@ export default function Ecommerce() {
     finally { setSeoLoading(false) }
   }
 
-  const filtered = useMemo(
-    () => (brand === 'all' ? orders : orders.filter((o) => o.brand_id === brand)),
-    [orders, brand]
-  )
-
   const k = useMemo(() => {
-    const gross = filtered.reduce((s, o) => s + (Number(o.amount) || 0), 0)
-    const refund = filtered.reduce((s, o) => s + (Number(o.refund_amount) || 0), 0)
+    const gross = orders.reduce((s, o) => s + (Number(o.amount) || 0), 0)
+    const refund = orders.reduce((s, o) => s + (Number(o.refund_amount) || 0), 0)
     const net = gross - refund
-    const validOrders = filtered.filter((o) => !o.refund_amount || Number(o.refund_amount) === 0).length
-    const refundCount = filtered.filter((o) => Number(o.refund_amount) > 0).length
-    const newCustomers = filtered.filter((o) => o.is_new_customer).length
-    const returning = filtered.filter((o) => !o.is_new_customer).length
+    const validOrders = orders.filter((o) => !o.refund_amount || Number(o.refund_amount) === 0).length
+    const refundCount = orders.filter((o) => Number(o.refund_amount) > 0).length
+    const newCustomers = orders.filter((o) => o.is_new_customer).length
+    const returning = orders.filter((o) => !o.is_new_customer).length
     const aov = validOrders ? net / validOrders : 0
-    const totalCost = filtered.reduce((s, o) => s + (Number(o.product_cost) || 0), 0)
+    const totalCost = orders.reduce((s, o) => s + (Number(o.product_cost) || 0), 0)
     const profit = net - totalCost
     const margin = net ? (profit / net) * 100 : 0
-    const adSpend = (brand === 'all' ? spend : spend.filter((x) => x.brand_id === brand)).reduce((s, x) => s + (Number(x.amount) || 0), 0)
+    const adSpend = spend.reduce((s, x) => s + (Number(x.amount) || 0), 0)
     const roas = adSpend ? net / adSpend : null
     return { gross, refund, net, validOrders, refundCount, newCustomers, returning, aov, totalCost, profit, margin, roas }
-  }, [filtered, spend, brand])
-
-  const brandTabs = [
-    ...brands.map((b) => ({ value: b.id, label: b.name })),
-    { value: 'all', label: '双品牌对比' },
-  ]
+  }, [orders, spend])
 
   const webKpi = useMemo(() => {
     const ga = googleReport?.gaDaily || []
@@ -254,10 +240,6 @@ export default function Ecommerce() {
           </>
         }
       />
-
-      <div className="mb-4">
-        <Tabs tabs={brandTabs.length ? brandTabs : [{ value: 'all', label: '全部' }]} value={brand} onChange={setBrand} />
-      </div>
 
       <Card className="mb-6 p-0 overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
